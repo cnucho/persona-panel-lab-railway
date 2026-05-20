@@ -1,0 +1,453 @@
+import 'dotenv/config';
+import express from 'express';
+import helmet from 'helmet';
+import morgan from 'morgan';
+import crypto from 'node:crypto';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import OpenAI from 'openai';
+import pg from 'pg';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+const cfg = {
+  port: Number(process.env.PORT || 3000),
+  defaultModel: process.env.DEFAULT_MODEL || 'gpt-5.4-mini',
+  summaryModel: process.env.SUMMARY_MODEL || 'gpt-5.4-nano',
+  finalModel: process.env.FINAL_MODEL || process.env.DEFAULT_MODEL || 'gpt-5.4-mini',
+  creditBudget: Number(process.env.CREDIT_BUDGET_PER_USER || 30000),
+  krwPerCredit: Number(process.env.KRW_PER_CREDIT || 0.1),
+  usdToKrw: Number(process.env.USD_TO_KRW || 1400),
+  maxPersonas: Number(process.env.MAX_PERSONAS || 5),
+  maxRounds: Number(process.env.MAX_ROUNDS_PER_SESSION || 6),
+  maxMessages: Number(process.env.MAX_MESSAGES_PER_SESSION || 80),
+  maxOutputTokens: Number(process.env.MAX_OUTPUT_TOKENS || 700),
+  requireAccessCode: String(process.env.REQUIRE_ACCESS_CODE || 'false') === 'true',
+  accessCodes: new Set(String(process.env.ACCESS_CODES || '').split(',').map(s => s.trim()).filter(Boolean)),
+  classroomSecret: process.env.CLASSROOM_SHARED_SECRET || 'persona-panel-lab-secret',
+  databaseUrl: process.env.DATABASE_URL || '',
+  openaiKey: process.env.OPENAI_API_KEY || ''
+};
+
+// Official OpenAI prices can change. Keep these as env-overridable app estimates.
+const MODEL_PRICES = {
+  'gpt-5.5': { input: 5.00, output: 30.00 },
+  'gpt-5.5-pro': { input: 30.00, output: 180.00 },
+  'gpt-5.4': { input: 2.50, output: 15.00 },
+  'gpt-5.4-mini': { input: 0.75, output: 4.50 },
+  'gpt-5.4-nano': { input: 0.20, output: 1.25 },
+  'gpt-5.4-pro': { input: 30.00, output: 180.00 }
+};
+
+const MEETING_TYPES = {
+  expert_panel: {
+    label: '전문가 좌담회',
+    format: '각 퍼소나가 1차 의견을 내고, 서로의 관점 차이를 짧게 지적한 뒤, 쟁점과 남은 질문을 정리한다.'
+  },
+  expert_interview: {
+    label: '전문가 면접',
+    format: '진행자가 한 퍼소나에게 깊게 묻고, 퍼소나는 자신의 지식·경험·가치·한계를 분명히 하며 답한다.'
+  },
+  delphi_lite: {
+    label: '델파이 라이트',
+    format: '퍼소나들이 익명 평가자처럼 판단 기준과 점수를 제시하고, 불일치 이유와 합의 가능 조건을 정리한다.'
+  },
+  focus_group: {
+    label: '포커스 집단 인터뷰',
+    format: '각 퍼소나가 사용자·소비자·이해관계자 입장에서 즉각 반응, 감정, 우려, 수용 조건을 말한다.'
+  },
+  stakeholder_test: {
+    label: '이해관계자 반응 테스트',
+    format: '정책이나 홍보안이 각 이해관계자에게 어떤 이익·피해·불신·수용 조건을 만드는지 검토한다.'
+  },
+  ad_reaction: {
+    label: '광고·소비자 반응 테스트',
+    format: '광고 문구, 메시지, 이미지 전략에 대해 매력, 거부감, 오해, 신뢰 요소를 평가한다.'
+  },
+  classification_audit: {
+    label: '분류 타당성 감사',
+    format: '분류안의 정확도, 신뢰도, 진실성, 타당도, 사회적 정합성, 이의제기 가능성을 검토한다.'
+  }
+};
+
+function id(prefix) {
+  return `${prefix}_${crypto.randomBytes(8).toString('hex')}`;
+}
+function hash(input) {
+  return crypto.createHash('sha256').update(input).digest('hex').slice(0, 24);
+}
+function nowIso() {
+  return new Date().toISOString();
+}
+function roughTokens(text) {
+  return Math.max(1, Math.ceil(String(text || '').length / 3));
+}
+function priceFor(model) {
+  return MODEL_PRICES[model] || MODEL_PRICES['gpt-5.4-mini'];
+}
+function costToCredits({ model, inputTokens, outputTokens }) {
+  const p = priceFor(model);
+  const usd = (inputTokens / 1_000_000) * p.input + (outputTokens / 1_000_000) * p.output;
+  const krw = usd * cfg.usdToKrw;
+  const credits = Math.max(1, Math.ceil(krw / cfg.krwPerCredit));
+  return { usd, krw, credits };
+}
+function ensureCreditAvailable(student, estimatedCredits) {
+  const remaining = student.credit_limit - student.credits_used;
+  if (remaining <= 0) {
+    const err = new Error('학생별 사용 한도를 초과했습니다.');
+    err.status = 402;
+    throw err;
+  }
+  if (estimatedCredits > remaining) {
+    const err = new Error(`남은 크레딧이 부족합니다. 남은 크레딧: ${remaining}, 예상 필요: ${estimatedCredits}`);
+    err.status = 402;
+    throw err;
+  }
+}
+
+class MemoryStore {
+  constructor() {
+    this.students = new Map();
+    this.sessions = new Map();
+    this.personas = new Map();
+    this.messages = new Map();
+  }
+  async init() {}
+  async upsertStudent(student) {
+    const prev = this.students.get(student.id);
+    const merged = { ...student, ...(prev ? { credits_used: prev.credits_used, created_at: prev.created_at } : {}) };
+    this.students.set(student.id, merged);
+    return merged;
+  }
+  async getStudent(id) { return this.students.get(id); }
+  async chargeStudent(id, credits) {
+    const s = this.students.get(id);
+    if (!s) throw new Error('student not found');
+    s.credits_used += credits;
+    s.updated_at = nowIso();
+    this.students.set(id, s);
+    return s;
+  }
+  async createSession(session) { this.sessions.set(session.id, session); return session; }
+  async getSession(id) { return this.sessions.get(id); }
+  async updateSession(id, patch) { const s = { ...this.sessions.get(id), ...patch, updated_at: nowIso() }; this.sessions.set(id, s); return s; }
+  async createPersona(p) { this.personas.set(p.id, p); return p; }
+  async listPersonas(sessionId) { return [...this.personas.values()].filter(p => p.session_id === sessionId); }
+  async createMessage(m) { this.messages.set(m.id, m); return m; }
+  async listMessages(sessionId, limit = 200) { return [...this.messages.values()].filter(m => m.session_id === sessionId).sort((a,b) => a.created_at.localeCompare(b.created_at)).slice(-limit); }
+  async countMessages(sessionId) { return [...this.messages.values()].filter(m => m.session_id === sessionId).length; }
+}
+
+class PgStore {
+  constructor(url) {
+    this.pool = new pg.Pool({ connectionString: url, ssl: url.includes('sslmode=require') ? { rejectUnauthorized: false } : undefined });
+  }
+  async init() {
+    await this.pool.query(`
+      create table if not exists students (
+        id text primary key,
+        display_name text not null,
+        access_code text,
+        credit_limit integer not null,
+        credits_used integer not null default 0,
+        created_at timestamptz not null default now(),
+        updated_at timestamptz not null default now()
+      );
+      create table if not exists sessions (
+        id text primary key,
+        student_id text not null references students(id),
+        title text not null,
+        topic text not null,
+        meeting_type text not null,
+        place text,
+        started_at text,
+        rolling_summary text default '',
+        round_count integer not null default 0,
+        created_at timestamptz not null default now(),
+        updated_at timestamptz not null default now()
+      );
+      create table if not exists personas (
+        id text primary key,
+        session_id text not null references sessions(id) on delete cascade,
+        name text not null,
+        role text not null,
+        expertise text default '',
+        knowledge text default '',
+        values_text text default '',
+        rules text default '',
+        style text default '',
+        created_at timestamptz not null default now()
+      );
+      create table if not exists messages (
+        id text primary key,
+        session_id text not null references sessions(id) on delete cascade,
+        persona_id text,
+        speaker text not null,
+        channel text not null,
+        content text not null,
+        model text,
+        tokens_in integer default 0,
+        tokens_out integer default 0,
+        credits_charged integer default 0,
+        created_at timestamptz not null default now()
+      );
+    `);
+  }
+  async upsertStudent(s) {
+    const row = await this.pool.query(`
+      insert into students(id, display_name, access_code, credit_limit)
+      values($1,$2,$3,$4)
+      on conflict(id) do update set display_name = excluded.display_name, access_code = excluded.access_code, updated_at = now()
+      returning id, display_name, access_code, credit_limit, credits_used, created_at, updated_at
+    `, [s.id, s.display_name, s.access_code, s.credit_limit]);
+    return row.rows[0];
+  }
+  async getStudent(id) { const r = await this.pool.query('select * from students where id=$1', [id]); return r.rows[0]; }
+  async chargeStudent(id, credits) { const r = await this.pool.query('update students set credits_used = credits_used + $2, updated_at = now() where id=$1 returning *', [id, credits]); return r.rows[0]; }
+  async createSession(s) { const r = await this.pool.query(`insert into sessions(id, student_id, title, topic, meeting_type, place, started_at, rolling_summary, round_count) values($1,$2,$3,$4,$5,$6,$7,$8,$9) returning *`, [s.id,s.student_id,s.title,s.topic,s.meeting_type,s.place,s.started_at,s.rolling_summary || '',s.round_count || 0]); return r.rows[0]; }
+  async getSession(id) { const r = await this.pool.query('select * from sessions where id=$1', [id]); return r.rows[0]; }
+  async updateSession(id, patch) {
+    const fields = [];
+    const vals = [];
+    let i=1;
+    for (const [k,v] of Object.entries(patch)) { fields.push(`${k}=$${i++}`); vals.push(v); }
+    if (!fields.length) return this.getSession(id);
+    vals.push(id);
+    const r = await this.pool.query(`update sessions set ${fields.join(', ')}, updated_at=now() where id=$${i} returning *`, vals);
+    return r.rows[0];
+  }
+  async createPersona(p) { const r = await this.pool.query(`insert into personas(id, session_id, name, role, expertise, knowledge, values_text, rules, style) values($1,$2,$3,$4,$5,$6,$7,$8,$9) returning *`, [p.id,p.session_id,p.name,p.role,p.expertise,p.knowledge,p.values_text,p.rules,p.style]); return r.rows[0]; }
+  async listPersonas(sessionId) { const r = await this.pool.query('select * from personas where session_id=$1 order by created_at asc', [sessionId]); return r.rows; }
+  async createMessage(m) { const r = await this.pool.query(`insert into messages(id, session_id, persona_id, speaker, channel, content, model, tokens_in, tokens_out, credits_charged) values($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) returning *`, [m.id,m.session_id,m.persona_id,m.speaker,m.channel,m.content,m.model,m.tokens_in,m.tokens_out,m.credits_charged]); return r.rows[0]; }
+  async listMessages(sessionId, limit = 200) { const r = await this.pool.query('select * from messages where session_id=$1 order by created_at asc limit $2', [sessionId, limit]); return r.rows; }
+  async countMessages(sessionId) { const r = await this.pool.query('select count(*)::int as count from messages where session_id=$1', [sessionId]); return r.rows[0].count; }
+}
+
+const store = cfg.databaseUrl ? new PgStore(cfg.databaseUrl) : new MemoryStore();
+const openai = cfg.openaiKey ? new OpenAI({ apiKey: cfg.openaiKey }) : null;
+
+function personaCard(p) {
+  return `이름: ${p.name}\n역할/사회적 위치: ${p.role}\n전문성/경험: ${p.expertise || ''}\n사용할 지식: ${p.knowledge || ''}\n중시 가치: ${p.values_text || p.values || ''}\n판단 규칙: ${p.rules || ''}\n말하기 방식: ${p.style || ''}`;
+}
+function recentContext(messages) {
+  return messages.slice(-14).map(m => `[${m.speaker}/${m.channel}] ${m.content}`).join('\n');
+}
+function buildSystemPrompt(session, personas, mode, targetPersona) {
+  const mt = MEETING_TYPES[session.meeting_type] || MEETING_TYPES.expert_panel;
+  const personaText = mode === 'persona' && targetPersona ? personaCard(targetPersona) : personas.map(personaCard).join('\n\n---\n\n');
+  return `너는 가상 퍼소나 좌담회 실험실의 진행 엔진이다.\n\n회의 종류: ${mt.label}\n운영 형식: ${mt.format}\n회의 주제: ${session.topic}\n장소: ${session.place || '미지정'}\n시작 시각: ${session.started_at || session.created_at}\n\n퍼소나 카드:\n${personaText}\n\n절대 규칙:\n1. 퍼소나의 지식·가치·판단 규칙을 유지한다.\n2. 실제 인간 전문가나 실제 소비자 조사를 대체한다고 말하지 않는다.\n3. 사실, 추정, 가치 판단을 가능한 한 구분한다.\n4. 근거가 부족하면 검증 필요라고 표시한다.\n5. 특정 집단을 고정관념으로 단정하지 않는다.\n6. 학생 개인정보, 실제 상담 내용, 민감정보를 요구하지 않는다.\n7. 발언은 짧고 명확하게 한다.\n\n출력 방식:\n- 공동 대화장에서는 각 퍼소나 이름을 대괄호로 표시한다. 예: [권리 감시자]\n- 개별 대화창에서는 해당 퍼소나의 1인칭 답변으로 말한다.\n- 마지막에는 가능하면 '검증 필요'와 '회의록 기록용 한 문장'을 덧붙인다.`;
+}
+async function callAi({ model, system, user, maxOutputTokens }) {
+  if (!openai) {
+    const fake = `데모 응답입니다. OPENAI_API_KEY가 설정되면 실제 모델이 응답합니다.\n\n[회의 기록용]\n- 입력된 조건을 바탕으로 퍼소나 관점의 응답이 생성될 예정입니다.\n- 검증 필요: 실제 조사의 대체가 아니라 예비 관점 탐색으로만 사용해야 합니다.`;
+    const it = roughTokens(system + user);
+    const ot = roughTokens(fake);
+    return { text: fake, inputTokens: it, outputTokens: ot, model, dryRun: true };
+  }
+  const resp = await openai.responses.create({
+    model,
+    instructions: system,
+    input: user,
+    max_output_tokens: maxOutputTokens
+  });
+  const text = resp.output_text || (resp.output || []).flatMap(item => item.content || []).map(c => c.text || '').join('\n').trim();
+  const usage = resp.usage || {};
+  return {
+    text: text || '(응답이 비어 있습니다.)',
+    inputTokens: usage.input_tokens || roughTokens(system + user),
+    outputTokens: usage.output_tokens || roughTokens(text),
+    model,
+    dryRun: false
+  };
+}
+async function loadSessionBundle(sessionId) {
+  const session = await store.getSession(sessionId);
+  if (!session) throw Object.assign(new Error('세션을 찾을 수 없습니다.'), { status: 404 });
+  const personas = await store.listPersonas(sessionId);
+  const messages = await store.listMessages(sessionId, 200);
+  return { session, personas, messages };
+}
+function checkOwner(session, studentId) {
+  if (session.student_id !== studentId) throw Object.assign(new Error('세션 접근 권한이 없습니다.'), { status: 403 });
+}
+
+const app = express();
+app.use(helmet({ contentSecurityPolicy: false }));
+app.use(morgan('dev'));
+app.use(express.json({ limit: '1mb' }));
+app.use(express.static(path.join(__dirname, '..', 'public')));
+
+app.get('/api/config', (req, res) => {
+  res.json({
+    defaultModel: cfg.defaultModel,
+    summaryModel: cfg.summaryModel,
+    creditBudget: cfg.creditBudget,
+    krwPerCredit: cfg.krwPerCredit,
+    usdToKrw: cfg.usdToKrw,
+    requireAccessCode: cfg.requireAccessCode,
+    hasOpenAiKey: Boolean(cfg.openaiKey),
+    meetingTypes: Object.fromEntries(Object.entries(MEETING_TYPES).map(([k,v]) => [k, v.label])),
+    limits: { maxPersonas: cfg.maxPersonas, maxRounds: cfg.maxRounds, maxMessages: cfg.maxMessages, maxOutputTokens: cfg.maxOutputTokens }
+  });
+});
+
+app.post('/api/students', async (req, res, next) => {
+  try {
+    const displayName = String(req.body.displayName || '').trim().slice(0, 80);
+    const accessCode = String(req.body.accessCode || '').trim();
+    if (!displayName) throw Object.assign(new Error('이름 또는 별칭을 입력하세요.'), { status: 400 });
+    if (cfg.requireAccessCode && !cfg.accessCodes.has(accessCode)) throw Object.assign(new Error('유효하지 않은 수업 코드입니다.'), { status: 403 });
+    const seed = cfg.requireAccessCode ? accessCode : `${displayName}:${req.ip}`;
+    const student = await store.upsertStudent({
+      id: `stu_${hash(cfg.classroomSecret + ':' + seed)}`,
+      display_name: displayName,
+      access_code: accessCode || null,
+      credit_limit: cfg.creditBudget,
+      credits_used: 0,
+      created_at: nowIso(),
+      updated_at: nowIso()
+    });
+    res.json({ student, remainingCredits: student.credit_limit - student.credits_used });
+  } catch (e) { next(e); }
+});
+
+app.get('/api/students/:id', async (req, res, next) => {
+  try {
+    const s = await store.getStudent(req.params.id);
+    if (!s) throw Object.assign(new Error('학생을 찾을 수 없습니다.'), { status: 404 });
+    res.json({ student: s, remainingCredits: s.credit_limit - s.credits_used });
+  } catch (e) { next(e); }
+});
+
+app.post('/api/sessions', async (req, res, next) => {
+  try {
+    const student = await store.getStudent(req.body.studentId);
+    if (!student) throw Object.assign(new Error('학생 세션을 먼저 만드세요.'), { status: 400 });
+    const meetingType = MEETING_TYPES[req.body.meetingType] ? req.body.meetingType : 'expert_panel';
+    const session = await store.createSession({
+      id: id('ses'),
+      student_id: student.id,
+      title: String(req.body.title || '가상 퍼소나 좌담회').slice(0, 120),
+      topic: String(req.body.topic || '').slice(0, 2000),
+      meeting_type: meetingType,
+      place: String(req.body.place || '').slice(0, 120),
+      started_at: String(req.body.startedAt || nowIso()),
+      rolling_summary: '',
+      round_count: 0,
+      created_at: nowIso(),
+      updated_at: nowIso()
+    });
+    res.json({ session, meetingType: MEETING_TYPES[meetingType] });
+  } catch (e) { next(e); }
+});
+
+app.get('/api/sessions/:id', async (req, res, next) => {
+  try {
+    const bundle = await loadSessionBundle(req.params.id);
+    res.json(bundle);
+  } catch (e) { next(e); }
+});
+
+app.post('/api/sessions/:id/personas', async (req, res, next) => {
+  try {
+    const { session, personas } = await loadSessionBundle(req.params.id);
+    checkOwner(session, req.body.studentId);
+    if (personas.length >= cfg.maxPersonas) throw Object.assign(new Error(`퍼소나는 최대 ${cfg.maxPersonas}명까지 가능합니다.`), { status: 400 });
+    const p = await store.createPersona({
+      id: id('per'),
+      session_id: session.id,
+      name: String(req.body.name || '무명 퍼소나').trim().slice(0, 80),
+      role: String(req.body.role || '').trim().slice(0, 500),
+      expertise: String(req.body.expertise || '').trim().slice(0, 1000),
+      knowledge: String(req.body.knowledge || '').trim().slice(0, 1500),
+      values_text: String(req.body.valuesText || req.body.values || '').trim().slice(0, 1000),
+      rules: String(req.body.rules || '').trim().slice(0, 1500),
+      style: String(req.body.style || '').trim().slice(0, 500),
+      created_at: nowIso()
+    });
+    res.json({ persona: p });
+  } catch (e) { next(e); }
+});
+
+app.post('/api/sessions/:id/message', async (req, res, next) => {
+  try {
+    const student = await store.getStudent(req.body.studentId);
+    if (!student) throw Object.assign(new Error('학생을 찾을 수 없습니다.'), { status: 404 });
+    const { session, personas, messages } = await loadSessionBundle(req.params.id);
+    checkOwner(session, student.id);
+    if (await store.countMessages(session.id) >= cfg.maxMessages) throw Object.assign(new Error(`메시지는 세션당 최대 ${cfg.maxMessages}개까지 가능합니다.`), { status: 400 });
+    if (session.round_count >= cfg.maxRounds) throw Object.assign(new Error(`라운드는 최대 ${cfg.maxRounds}회까지 가능합니다.`), { status: 400 });
+    const content = String(req.body.content || '').trim();
+    if (!content) throw Object.assign(new Error('메시지를 입력하세요.'), { status: 400 });
+    if (personas.length === 0) throw Object.assign(new Error('퍼소나를 먼저 1명 이상 생성하세요.'), { status: 400 });
+    const mode = req.body.mode === 'persona' ? 'persona' : 'shared';
+    const targetPersona = mode === 'persona' ? personas.find(p => p.id === req.body.personaId) : null;
+    if (mode === 'persona' && !targetPersona) throw Object.assign(new Error('개별 대화할 퍼소나를 찾을 수 없습니다.'), { status: 404 });
+
+    await store.createMessage({ id: id('msg'), session_id: session.id, persona_id: null, speaker: '학생', channel: mode === 'shared' ? '공동 대화장' : `개별 질문`, content, model: null, tokens_in: 0, tokens_out: 0, credits_charged: 0, created_at: nowIso() });
+
+    const system = buildSystemPrompt(session, personas, mode, targetPersona);
+    const context = `이전 요약:\n${session.rolling_summary || '(아직 없음)'}\n\n최근 회의록:\n${recentContext(messages)}\n\n학생의 새 입력:\n${content}`;
+    const estInput = roughTokens(system + context);
+    const estOutput = cfg.maxOutputTokens;
+    const estCost = costToCredits({ model: cfg.defaultModel, inputTokens: estInput, outputTokens: estOutput });
+    ensureCreditAvailable(student, estCost.credits);
+
+    const ai = await callAi({ model: cfg.defaultModel, system, user: context, maxOutputTokens: cfg.maxOutputTokens });
+    const actualCost = costToCredits({ model: ai.model, inputTokens: ai.inputTokens, outputTokens: ai.outputTokens });
+    const chargedStudent = await store.chargeStudent(student.id, Math.min(actualCost.credits, student.credit_limit - student.credits_used));
+    const speaker = mode === 'persona' ? targetPersona.name : '가상 퍼소나 좌담회';
+    const aiMessage = await store.createMessage({
+      id: id('msg'), session_id: session.id, persona_id: targetPersona?.id || null, speaker,
+      channel: mode === 'persona' ? '퍼소나별 대화창' : '공동 대화장', content: ai.text,
+      model: ai.model, tokens_in: ai.inputTokens, tokens_out: ai.outputTokens, credits_charged: actualCost.credits, created_at: nowIso()
+    });
+    await store.updateSession(session.id, { round_count: session.round_count + 1 });
+    res.json({ message: aiMessage, usage: { inputTokens: ai.inputTokens, outputTokens: ai.outputTokens, credits: actualCost.credits, usd: actualCost.usd, krw: actualCost.krw, dryRun: ai.dryRun }, student: chargedStudent, remainingCredits: chargedStudent.credit_limit - chargedStudent.credits_used });
+  } catch (e) { next(e); }
+});
+
+app.post('/api/sessions/:id/summary', async (req, res, next) => {
+  try {
+    const student = await store.getStudent(req.body.studentId);
+    if (!student) throw Object.assign(new Error('학생을 찾을 수 없습니다.'), { status: 404 });
+    const { session, personas, messages } = await loadSessionBundle(req.params.id);
+    checkOwner(session, student.id);
+    const transcript = messages.map(m => `[${m.created_at}] ${m.speaker}/${m.channel}: ${m.content}`).join('\n');
+    const system = `너는 회의록 요약자다. 가상 퍼소나 좌담회의 회의록을 교육용 제출물로 요약한다. 사실·추정·가치 판단, 합의점, 불일치점, 검증 필요 주장, 학생 성찰 질문을 분리하라.`;
+    const user = `회의 제목: ${session.title}\n회의 종류: ${(MEETING_TYPES[session.meeting_type] || {}).label}\n주제: ${session.topic}\n퍼소나:\n${personas.map(p => '- ' + p.name + ': ' + p.role).join('\n')}\n\n회의록:\n${transcript}`;
+    const estCost = costToCredits({ model: cfg.summaryModel, inputTokens: roughTokens(system+user), outputTokens: cfg.maxOutputTokens });
+    ensureCreditAvailable(student, estCost.credits);
+    const ai = await callAi({ model: cfg.summaryModel, system, user, maxOutputTokens: cfg.maxOutputTokens });
+    const actualCost = costToCredits({ model: ai.model, inputTokens: ai.inputTokens, outputTokens: ai.outputTokens });
+    const chargedStudent = await store.chargeStudent(student.id, Math.min(actualCost.credits, student.credit_limit - student.credits_used));
+    await store.updateSession(session.id, { rolling_summary: ai.text });
+    const msg = await store.createMessage({ id: id('msg'), session_id: session.id, persona_id: null, speaker: '요약자', channel: '요약본', content: ai.text, model: ai.model, tokens_in: ai.inputTokens, tokens_out: ai.outputTokens, credits_charged: actualCost.credits, created_at: nowIso() });
+    res.json({ summary: msg, usage: { inputTokens: ai.inputTokens, outputTokens: ai.outputTokens, credits: actualCost.credits, usd: actualCost.usd, krw: actualCost.krw, dryRun: ai.dryRun }, student: chargedStudent, remainingCredits: chargedStudent.credit_limit - chargedStudent.credits_used });
+  } catch (e) { next(e); }
+});
+
+app.get('/api/sessions/:id/export.md', async (req, res, next) => {
+  try {
+    const { session, personas, messages } = await loadSessionBundle(req.params.id);
+    const md = `# ${session.title}\n\n- 회의 종류: ${(MEETING_TYPES[session.meeting_type] || {}).label}\n- 주제: ${session.topic}\n- 장소: ${session.place || '미지정'}\n- 시작 시각: ${session.started_at || session.created_at}\n\n## 퍼소나\n\n${personas.map(p => `### ${p.name}\n- 역할: ${p.role}\n- 전문성/경험: ${p.expertise || ''}\n- 지식: ${p.knowledge || ''}\n- 가치: ${p.values_text || ''}\n- 규칙: ${p.rules || ''}`).join('\n\n')}\n\n## 회의록\n\n${messages.map(m => `### ${m.speaker} · ${m.channel}\n${m.content}\n\n- 시각: ${m.created_at}\n- 모델: ${m.model || '-'} / 입력 ${m.tokens_in || 0}, 출력 ${m.tokens_out || 0}, 차감 ${m.credits_charged || 0} credits`).join('\n\n')}\n`;
+    res.setHeader('Content-Type', 'text/markdown; charset=utf-8');
+    res.send(md);
+  } catch (e) { next(e); }
+});
+
+app.use((err, req, res, next) => {
+  const status = err.status || 500;
+  res.status(status).json({ error: err.message || '서버 오류' });
+});
+
+await store.init();
+if (process.argv.includes('--check-config')) {
+  console.log(JSON.stringify({ ok: true, cfg: { ...cfg, openaiKey: Boolean(cfg.openaiKey), databaseUrl: Boolean(cfg.databaseUrl) } }, null, 2));
+  process.exit(0);
+}
+app.listen(cfg.port, () => {
+  console.log(`Persona Panel Lab listening on :${cfg.port}`);
+});

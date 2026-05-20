@@ -1,0 +1,239 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>가상 퍼소나 좌담회 실험실</title>
+  <style>
+    :root { --bg:#f6f7fb; --card:#fff; --ink:#18212f; --muted:#6b7280; --line:#e5e7eb; --accent:#334155; --blue:#2563eb; --red:#dc2626; --green:#047857; }
+    * { box-sizing: border-box; }
+    body { margin:0; font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background:var(--bg); color:var(--ink); }
+    header { padding: 22px 28px; background: #111827; color:#fff; }
+    header h1 { margin:0 0 6px; font-size:22px; }
+    header p { margin:0; color:#d1d5db; }
+    main { max-width:1180px; margin:0 auto; padding:22px; display:grid; grid-template-columns: 360px 1fr; gap:18px; }
+    section, .card { background:var(--card); border:1px solid var(--line); border-radius:14px; box-shadow:0 1px 2px rgba(0,0,0,.04); }
+    section { padding:16px; }
+    h2 { font-size:17px; margin:0 0 12px; }
+    h3 { font-size:15px; margin:16px 0 8px; }
+    label { display:block; font-size:13px; color:var(--muted); margin:10px 0 5px; }
+    input, select, textarea { width:100%; padding:10px; border:1px solid #d1d5db; border-radius:10px; font:inherit; background:#fff; }
+    textarea { min-height:78px; resize:vertical; }
+    button { border:0; border-radius:10px; padding:10px 13px; font-weight:700; cursor:pointer; background:#1f2937; color:white; }
+    button.secondary { background:#e5e7eb; color:#111827; }
+    button.blue { background:var(--blue); }
+    button.green { background:var(--green); }
+    button.red { background:var(--red); }
+    button:disabled { opacity:.5; cursor:not-allowed; }
+    .row { display:flex; gap:8px; align-items:center; }
+    .row > * { flex:1; }
+    .pill { display:inline-flex; align-items:center; gap:5px; padding:5px 8px; border-radius:999px; font-size:12px; background:#eef2ff; color:#3730a3; margin-right:6px; }
+    .muted { color:var(--muted); font-size:13px; }
+    .small { font-size:12px; }
+    .danger { color:var(--red); }
+    .good { color:var(--green); }
+    .tabs { display:flex; flex-wrap:wrap; gap:8px; margin-bottom:10px; }
+    .tab { padding:8px 10px; background:#e5e7eb; color:#111827; border-radius:10px; cursor:pointer; font-size:13px; }
+    .tab.active { background:#111827; color:#fff; }
+    .messages { max-height:560px; overflow:auto; padding:12px; background:#f9fafb; border:1px solid var(--line); border-radius:12px; }
+    .msg { padding:10px; border-radius:12px; margin:8px 0; background:#fff; border:1px solid var(--line); white-space:pre-wrap; }
+    .msg .meta { font-size:12px; color:var(--muted); margin-bottom:6px; display:flex; justify-content:space-between; gap:8px; }
+    .msg.student { border-left:4px solid #94a3b8; }
+    .msg.ai { border-left:4px solid #2563eb; }
+    .msg.summary { border-left:4px solid #047857; }
+    .persona { padding:10px; margin:8px 0; border:1px solid var(--line); border-radius:12px; background:#fbfdff; }
+    .persona b { display:block; }
+    .grid2 { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+    .status { padding:10px; border-radius:12px; background:#f1f5f9; margin:10px 0; }
+    .progress { height:10px; border-radius:999px; background:#e5e7eb; overflow:hidden; }
+    .progress > div { height:100%; background:#2563eb; width:0%; }
+    @media (max-width: 920px) { main { grid-template-columns:1fr; } }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>가상 퍼소나 좌담회 실험실</h1>
+    <p>퍼소나를 만들고, 공동 대화장 또는 퍼소나별 대화창에서 전문가 좌담회·면접·포커스그룹을 실행합니다.</p>
+  </header>
+  <main>
+    <aside>
+      <section>
+        <h2>1. 입장 및 크레딧</h2>
+        <label>이름/별칭</label>
+        <input id="displayName" placeholder="예: 2학년 3반 05번" />
+        <label>수업 코드 <span class="muted">필요한 경우</span></label>
+        <input id="accessCode" placeholder="teacher code" />
+        <button class="blue" id="enterBtn">입장</button>
+        <div class="status small" id="creditBox">입장하면 크레딧이 표시됩니다.</div>
+        <div class="progress"><div id="creditProgress"></div></div>
+      </section>
+
+      <section style="margin-top:14px;">
+        <h2>2. 회의 만들기</h2>
+        <label>회의 제목</label>
+        <input id="title" value="AI 시대 지식과 분류의 사회적 의미" />
+        <label>주제</label>
+        <textarea id="topic">AI가 인용하기 쉬운 지식 형태와, 사람과 상황을 분류하는 기준의 사회적 타당성을 어떻게 검토할 것인가?</textarea>
+        <div class="grid2">
+          <div>
+            <label>회의 종류</label>
+            <select id="meetingType"></select>
+          </div>
+          <div>
+            <label>장소</label>
+            <input id="place" value="교실" />
+          </div>
+        </div>
+        <button class="green" id="createSessionBtn">회의 시작</button>
+        <div class="muted small" id="sessionInfo">회의를 시작하세요.</div>
+      </section>
+
+      <section style="margin-top:14px;">
+        <h2>3. 퍼소나 생성</h2>
+        <label>이름</label>
+        <input id="pName" value="분류 감사자" />
+        <label>역할/사회적 위치</label>
+        <textarea id="pRole">AI 분류 시스템이 어떤 사회적 의미를 갖는지 검토하는 퍼소나</textarea>
+        <label>전문성/대표 경험</label>
+        <textarea id="pExpertise">분류 기준 설계, 낙인 위험, 이의제기 절차, 교육 현장 맥락</textarea>
+        <label>사용할 지식</label>
+        <textarea id="pKnowledge">분류는 단순 정리가 아니라 사람과 상황을 특정 이름으로 고정하는 사회적 행위다. 정확도만으로 타당성이 보장되지 않는다.</textarea>
+        <label>중시 가치</label>
+        <textarea id="pValues">사회적 정합성, 권리, 공정성, 설명 가능성</textarea>
+        <label>판단 규칙</label>
+        <textarea id="pRules">정확도·신뢰도·진실성·타당도·사회적 정합성을 구분해 말한다. 이의제기권이 없으면 문제 삼는다.</textarea>
+        <label>말하기 방식</label>
+        <input id="pStyle" value="분석적이고 신중하게, 단정하지 않기" />
+        <button id="addPersonaBtn">퍼소나 추가</button>
+        <div id="personaList"></div>
+      </section>
+    </aside>
+
+    <section>
+      <div class="row">
+        <div>
+          <h2>4. 대화장</h2>
+          <div class="muted small">기본은 모든 퍼소나가 듣는 공동 대화장입니다. 개별 퍼소나 탭을 선택하면 1:1 면접처럼 묻습니다.</div>
+        </div>
+        <button class="secondary" id="refreshBtn">새로고침</button>
+      </div>
+      <div class="tabs" id="tabs"></div>
+      <div class="messages" id="messages"></div>
+      <label id="inputLabel">공동 대화장에 입력</label>
+      <textarea id="messageInput" placeholder="예: 각 퍼소나는 이 주제에서 어떤 지식이 살아남고 어떤 지식이 사라지는지 말해 주세요."></textarea>
+      <div class="row" style="margin-top:8px;">
+        <button class="blue" id="sendBtn">발언 요청</button>
+        <button class="green" id="summaryBtn">요약본 생성</button>
+        <button class="secondary" id="exportBtn">Markdown 내보내기</button>
+      </div>
+      <div id="usageBox" class="status small">사용량 정보가 여기에 표시됩니다.</div>
+    </section>
+  </main>
+<script>
+let config = null;
+let student = JSON.parse(localStorage.getItem('pp_student') || 'null');
+let session = JSON.parse(localStorage.getItem('pp_session') || 'null');
+let personas = [];
+let messages = [];
+let activeTab = 'shared';
+
+const $ = id => document.getElementById(id);
+function setStatus(text, cls='') { $('usageBox').innerHTML = `<span class="${cls}">${text}</span>`; }
+function saveState() { localStorage.setItem('pp_student', JSON.stringify(student)); localStorage.setItem('pp_session', JSON.stringify(session)); }
+async function api(path, opts={}) {
+  const res = await fetch(path, { headers: { 'Content-Type': 'application/json' }, ...opts, body: opts.body ? JSON.stringify(opts.body) : undefined });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || '요청 실패');
+  return data;
+}
+function renderCredit(remaining) {
+  if (!student) return;
+  const limit = student.credit_limit || config?.creditBudget || 30000;
+  const used = student.credits_used || 0;
+  const pct = Math.min(100, Math.max(0, used / limit * 100));
+  $('creditBox').innerHTML = `학생: <b>${student.display_name}</b><br>사용: ${used.toLocaleString()} / ${limit.toLocaleString()} credits<br>남음: ${(remaining ?? (limit-used)).toLocaleString()} credits`;
+  $('creditProgress').style.width = pct + '%';
+}
+function renderMeetingTypes() {
+  $('meetingType').innerHTML = Object.entries(config.meetingTypes).map(([k,v]) => `<option value="${k}">${v}</option>`).join('');
+}
+function renderPersonas() {
+  $('personaList').innerHTML = personas.length ? personas.map(p => `<div class="persona"><b>${p.name}</b><span class="muted small">${p.role}</span></div>`).join('') : '<div class="muted small">아직 퍼소나가 없습니다.</div>';
+  const tabs = [{id:'shared', name:'공동 대화장'}, ...personas.map(p => ({id:p.id, name:p.name}))];
+  $('tabs').innerHTML = tabs.map(t => `<span class="tab ${activeTab===t.id?'active':''}" data-id="${t.id}">${t.name}</span>`).join('');
+  document.querySelectorAll('.tab').forEach(el => el.onclick = () => { activeTab = el.dataset.id; renderPersonas(); renderMessages(); });
+}
+function renderMessages() {
+  const list = activeTab === 'shared' ? messages.filter(m => m.channel === '공동 대화장' || m.speaker === '학생' || m.channel === '요약본') : messages.filter(m => m.persona_id === activeTab || m.speaker === '학생');
+  $('messages').innerHTML = list.length ? list.map(m => {
+    const cls = m.channel === '요약본' ? 'summary' : (m.speaker === '학생' ? 'student' : 'ai');
+    return `<div class="msg ${cls}"><div class="meta"><span>${m.speaker} · ${m.channel}</span><span>${new Date(m.created_at).toLocaleString()}</span></div>${escapeHtml(m.content)}${m.credits_charged?`<div class="muted small">차감: ${m.credits_charged} credits · 입력 ${m.tokens_in} / 출력 ${m.tokens_out}</div>`:''}</div>`;
+  }).join('') : '<div class="muted">아직 회의록이 없습니다.</div>';
+  $('inputLabel').textContent = activeTab === 'shared' ? '공동 대화장에 입력' : `${personas.find(p=>p.id===activeTab)?.name || ''}에게 개별 질문`;
+}
+function escapeHtml(s) { return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+async function loadSession() {
+  if (!session) return;
+  const data = await api(`/api/sessions/${session.id}`);
+  session = data.session;
+  personas = data.personas;
+  messages = data.messages;
+  saveState();
+  $('sessionInfo').textContent = `진행 중: ${session.title} · ${session.meeting_type} · 라운드 ${session.round_count}`;
+  renderPersonas(); renderMessages();
+}
+
+async function init() {
+  config = await api('/api/config');
+  renderMeetingTypes();
+  if (student) renderCredit();
+  if (session) await loadSession();
+  if (!config.hasOpenAiKey) setStatus('OPENAI_API_KEY가 없어서 현재는 데모 응답으로 실행됩니다.', 'danger');
+}
+$('enterBtn').onclick = async () => {
+  try {
+    const data = await api('/api/students', { method:'POST', body:{ displayName:$('displayName').value, accessCode:$('accessCode').value }});
+    student = data.student; saveState(); renderCredit(data.remainingCredits); setStatus('입장 완료', 'good');
+  } catch(e) { setStatus(e.message, 'danger'); }
+};
+$('createSessionBtn').onclick = async () => {
+  try {
+    if (!student) throw new Error('먼저 입장하세요.');
+    const data = await api('/api/sessions', { method:'POST', body:{ studentId:student.id, title:$('title').value, topic:$('topic').value, meetingType:$('meetingType').value, place:$('place').value, startedAt:new Date().toISOString() }});
+    session = data.session; personas=[]; messages=[]; activeTab='shared'; saveState(); await loadSession(); setStatus('회의가 시작되었습니다.', 'good');
+  } catch(e) { setStatus(e.message, 'danger'); }
+};
+$('addPersonaBtn').onclick = async () => {
+  try {
+    if (!student || !session) throw new Error('입장하고 회의를 시작하세요.');
+    await api(`/api/sessions/${session.id}/personas`, { method:'POST', body:{ studentId:student.id, name:$('pName').value, role:$('pRole').value, expertise:$('pExpertise').value, knowledge:$('pKnowledge').value, valuesText:$('pValues').value, rules:$('pRules').value, style:$('pStyle').value }});
+    await loadSession(); setStatus('퍼소나가 추가되었습니다.', 'good');
+  } catch(e) { setStatus(e.message, 'danger'); }
+};
+$('sendBtn').onclick = async () => {
+  try {
+    if (!student || !session) throw new Error('입장하고 회의를 시작하세요.');
+    const content = $('messageInput').value.trim();
+    if (!content) throw new Error('메시지를 입력하세요.');
+    $('sendBtn').disabled=true; setStatus('응답 생성 중...');
+    const body = { studentId:student.id, content, mode: activeTab === 'shared' ? 'shared' : 'persona', personaId: activeTab === 'shared' ? null : activeTab };
+    const data = await api(`/api/sessions/${session.id}/message`, { method:'POST', body });
+    student = data.student; saveState(); renderCredit(data.remainingCredits); $('messageInput').value=''; await loadSession();
+    setStatus(`차감 ${data.usage.credits} credits · 약 ${Math.round(data.usage.krw).toLocaleString()}원 추정 · 입력 ${data.usage.inputTokens}, 출력 ${data.usage.outputTokens}${data.usage.dryRun?' · 데모':''}`, 'good');
+  } catch(e) { setStatus(e.message, 'danger'); } finally { $('sendBtn').disabled=false; }
+};
+$('summaryBtn').onclick = async () => {
+  try {
+    if (!student || !session) throw new Error('입장하고 회의를 시작하세요.');
+    $('summaryBtn').disabled=true; setStatus('요약 생성 중...');
+    const data = await api(`/api/sessions/${session.id}/summary`, { method:'POST', body:{ studentId:student.id }});
+    student = data.student; saveState(); renderCredit(data.remainingCredits); await loadSession();
+    setStatus(`요약 차감 ${data.usage.credits} credits · 약 ${Math.round(data.usage.krw).toLocaleString()}원 추정${data.usage.dryRun?' · 데모':''}`, 'good');
+  } catch(e) { setStatus(e.message, 'danger'); } finally { $('summaryBtn').disabled=false; }
+};
+$('refreshBtn').onclick = () => loadSession().catch(e => setStatus(e.message, 'danger'));
+$('exportBtn').onclick = () => { if (session) window.open(`/api/sessions/${session.id}/export.md`, '_blank'); };
+init().catch(e => setStatus(e.message, 'danger'));
+</script>
+</body>
+</html>

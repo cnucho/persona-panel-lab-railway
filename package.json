@@ -1,0 +1,24 @@
+{
+  "name": "persona-panel-lab-railway",
+  "version": "0.2.0",
+  "description": "Virtual persona panel lab with OpenAI API, Railway deployment, and per-student credit limits.",
+  "type": "module",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "node --watch src/server.js",
+    "test:config": "node src/server.js --check-config"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "helmet": "^8.0.0",
+    "morgan": "^1.10.0",
+    "openai": "^4.77.0",
+    "zod": "^3.24.1",
+    "pg": "^8.13.1"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
