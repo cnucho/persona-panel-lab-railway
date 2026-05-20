@@ -98,6 +98,14 @@ const MEETING_TYPES = {
   }
 };
 
+const LANGUAGE_OPTIONS = {
+  ko: { label: '한국어', instruction: '모든 전문가 발언과 요약을 자연스러운 한국어로 작성한다.' },
+  en: { label: 'English', instruction: 'Write all expert responses and summaries in natural English.' },
+  ja: { label: '日本語', instruction: '専門家の発言と要約を自然な日本語で書く。' },
+  zh: { label: '中文', instruction: '所有专家发言和摘要都使用自然的中文。' },
+  es: { label: 'Español', instruction: 'Escribe todas las respuestas y resúmenes de expertos en español natural.' }
+};
+
 function id(prefix) {
   return `${prefix}_${crypto.randomBytes(8).toString('hex')}`;
 }
@@ -125,6 +133,10 @@ function modelForDepth(depthKey) {
   const preset = DEPTH_PRESETS[depthKey] || DEPTH_PRESETS.balanced;
   if (preset.modelRole === 'premium') return cfg.premiumModel;
   return cfg.defaultModel;
+}
+
+function languageInstruction(languageKey) {
+  return (LANGUAGE_OPTIONS[languageKey] || LANGUAGE_OPTIONS.ko).instruction;
 }
 
 function costToCredits({ model, inputTokens, outputTokens }) {
@@ -345,7 +357,7 @@ function recentContext(messages, maxMessages) {
   return messages.slice(-maxMessages).map((m) => `[${m.speaker}/${m.channel}] ${m.content}`).join('\n');
 }
 
-function buildSystemPrompt(session, personas, mode, targetPersona, depthKey) {
+function buildSystemPrompt(session, personas, mode, targetPersona, depthKey, expertLanguage) {
   const mt = MEETING_TYPES[session.meeting_type] || MEETING_TYPES.expert_panel;
   const preset = DEPTH_PRESETS[depthKey] || DEPTH_PRESETS.balanced;
   const personaText = mode === 'persona' && targetPersona
@@ -365,6 +377,7 @@ function buildSystemPrompt(session, personas, mode, targetPersona, depthKey) {
 - 장소/상황: ${session.place || '온라인'}
 - 시작 시각: ${session.started_at || session.created_at}
 - 응답 깊이: ${preset.label}. ${preset.style}
+- 전문가 응답 언어: ${languageInstruction(expertLanguage)}
 
 퍼소나 카드:
 ${personaText}
@@ -376,7 +389,7 @@ ${personaText}
 4. 자료가 부족하면 "검증 필요"라고 표시한다. 출처나 수치를 지어내지 않는다.
 5. 민감한 개인정보, 실제 학생 상담, 건강/법률/금융 판단을 요구하면 일반적 관점과 추가 검증 필요성을 안내한다.
 6. 동일한 결론으로 수렴시키지 말고, 관점 차이와 조건부 합의를 남긴다.
-7. 발언은 한국어로 한다.
+7. 지정된 전문가 응답 언어를 유지한다. 사용자가 다른 언어로 질문해도 전문가 발언은 지정 언어로 답한다.
 
 출력 방식:
 - 공동 대화장에서는 각 발언 앞에 [퍼소나 이름]을 붙인다.
@@ -587,6 +600,7 @@ app.get('/api/config', (req, res) => {
     hasOpenAiKey: Boolean(cfg.openaiKey),
     meetingTypes: Object.fromEntries(Object.entries(MEETING_TYPES).map(([k, v]) => [k, v.label])),
     depthPresets: Object.fromEntries(Object.entries(DEPTH_PRESETS).map(([k, v]) => [k, { label: v.label, maxOutputTokens: v.maxOutputTokens }])),
+    languages: Object.fromEntries(Object.entries(LANGUAGE_OPTIONS).map(([k, v]) => [k, v.label])),
     limits: { maxPersonas: cfg.maxPersonas, maxRounds: cfg.maxRounds, maxMessages: cfg.maxMessages, maxOutputTokens: cfg.maxOutputTokens }
   });
 });
@@ -683,6 +697,7 @@ app.post('/api/sessions/:id/message', async (req, res, next) => {
 
     const mode = req.body.mode === 'persona' ? 'persona' : 'shared';
     const depthKey = DEPTH_PRESETS[req.body.depth] ? req.body.depth : 'balanced';
+    const expertLanguage = LANGUAGE_OPTIONS[req.body.expertLanguage] ? req.body.expertLanguage : 'ko';
     const preset = DEPTH_PRESETS[depthKey];
     const targetPersona = mode === 'persona' ? personas.find((p) => p.id === req.body.personaId) : null;
     if (mode === 'persona' && !targetPersona) throw apiError(404, '개별 대화할 퍼소나를 찾을 수 없습니다.');
@@ -702,7 +717,7 @@ app.post('/api/sessions/:id/message', async (req, res, next) => {
     });
 
     const model = modelForDepth(depthKey);
-    const system = buildSystemPrompt(session, personas, mode, targetPersona, depthKey);
+    const system = buildSystemPrompt(session, personas, mode, targetPersona, depthKey, expertLanguage);
     const context = [
       `이전 요약:\n${session.rolling_summary || '(아직 없음)'}`,
       `최근 회의록:\n${recentContext(messages, preset.maxContextMessages) || '(아직 없음)'}`,
@@ -749,7 +764,8 @@ app.post('/api/sessions/:id/summary', async (req, res, next) => {
     const { session, personas, messages } = await loadSessionBundle(req.params.id);
     checkOwner(session, student.id);
     const transcript = messages.map((m) => `[${m.created_at}] ${m.speaker}/${m.channel}: ${m.content}`).join('\n');
-    const system = `너는 전문가 퍼소나 인터뷰의 회의록 요약자다. 교육용 제출물로 쓸 수 있게 사실, 추정, 가치 판단, 이해관계, 합의, 불일치, 검증 필요 주장, 다음 질문을 분리한다. 퍼소나가 실제 전문가라는 식으로 과장하지 않는다.`;
+    const expertLanguage = LANGUAGE_OPTIONS[req.body.expertLanguage] ? req.body.expertLanguage : 'ko';
+    const system = `너는 전문가 퍼소나 인터뷰의 회의록 요약자다. 교육용 제출물로 쓸 수 있게 사실, 추정, 가치 판단, 이해관계, 합의, 불일치, 검증 필요 주장, 다음 질문을 분리한다. 퍼소나가 실제 전문가라는 식으로 과장하지 않는다. ${languageInstruction(expertLanguage)}`;
     const user = `회의 제목: ${session.title}
 회의 종류: ${(MEETING_TYPES[session.meeting_type] || {}).label}
 주제: ${session.topic}
