@@ -16,6 +16,7 @@ const cfg = {
   port: Number(process.env.PORT || 3000),
   defaultModel: process.env.DEFAULT_MODEL || 'gpt-4.1-mini',
   summaryModel: process.env.SUMMARY_MODEL || 'gpt-4.1-nano',
+  editorModel: process.env.EDITOR_MODEL || process.env.SUMMARY_MODEL || 'gpt-4.1-nano',
   premiumModel: process.env.PREMIUM_MODEL || process.env.DEFAULT_MODEL || 'gpt-4.1',
   creditBudget: Number(process.env.CREDIT_BUDGET_PER_USER || 30000),
   krwPerCredit: Number(process.env.KRW_PER_CREDIT || 0.1),
@@ -592,6 +593,7 @@ app.get('/api/config', (req, res) => {
   res.json({
     defaultModel: cfg.defaultModel,
     summaryModel: cfg.summaryModel,
+    editorModel: cfg.editorModel,
     premiumModel: cfg.premiumModel,
     creditBudget: cfg.creditBudget,
     krwPerCredit: cfg.krwPerCredit,
@@ -795,6 +797,58 @@ ${transcript}`;
       created_at: nowIso()
     });
     res.json({ summary: msg, usage: { inputTokens: ai.inputTokens, outputTokens: ai.outputTokens, credits: actualCost.credits, usd: actualCost.usd, krw: actualCost.krw, dryRun: ai.dryRun }, student: chargedStudent, remainingCredits: chargedStudent.credit_limit - chargedStudent.credits_used });
+  } catch (e) { next(e); }
+});
+
+app.post('/api/sessions/:id/editor', async (req, res, next) => {
+  try {
+    const student = await store.getStudent(req.body.studentId);
+    if (!student) throw apiError(404, '학생 세션을 찾을 수 없습니다.');
+    const { session, personas, messages } = await loadSessionBundle(req.params.id);
+    checkOwner(session, student.id);
+    if (!messages.length) throw apiError(400, '편집할 회의록이 아직 없습니다.');
+
+    const expertLanguage = LANGUAGE_OPTIONS[req.body.expertLanguage] ? req.body.expertLanguage : 'ko';
+    const instruction = String(req.body.editorInstruction || '').trim().slice(0, 1200);
+    const source = exportMarkdown(session, personas, messages);
+    const system = `너는 교육용 제출물 편집자다. 전문가 퍼소나 인터뷰 결과를 읽고 제출 가능한 보고서 초안으로 다듬는다. ${languageInstruction(expertLanguage)}
+
+편집 규칙:
+1. 원문에 없는 사실, 출처, 수치, 조사 결과를 만들지 않는다.
+2. 가상 퍼소나 인터뷰라는 한계를 명시한다.
+3. 사실, 추정, 가치 판단, 검증 필요 항목을 구분한다.
+4. 학생이 직접 채워야 할 부분은 [학생 작성]으로 남긴다.
+5. 문장과 구조를 정돈하되 퍼소나별 관점 차이를 지우지 않는다.`;
+    const user = `사용자 편집 지시:
+${instruction || '(특별 지시 없음. 제출용 보고서 초안으로 정리)'}
+
+원문:
+${source}`;
+    const maxOutputTokens = Math.min(1200, Math.max(cfg.maxOutputTokens, 900));
+    const estimatedCost = costToCredits({ model: cfg.editorModel, inputTokens: roughTokens(system + user), outputTokens: maxOutputTokens });
+    ensureCreditAvailable(student, estimatedCost.credits);
+    const ai = await callAi({ model: cfg.editorModel, system, user, maxOutputTokens });
+    const actualCost = ai.dryRun ? { usd: 0, krw: 0, credits: 0 } : costToCredits({ model: ai.model, inputTokens: ai.inputTokens, outputTokens: ai.outputTokens });
+    const chargedStudent = await store.chargeStudent(student.id, Math.min(actualCost.credits, student.credit_limit - student.credits_used));
+    const msg = await store.createMessage({
+      id: id('msg'),
+      session_id: session.id,
+      persona_id: null,
+      speaker: 'GPT 에디터',
+      channel: '편집본',
+      content: ai.text,
+      model: ai.model,
+      tokens_in: ai.inputTokens,
+      tokens_out: ai.outputTokens,
+      credits_charged: actualCost.credits,
+      created_at: nowIso()
+    });
+    res.json({
+      edited: msg,
+      usage: { inputTokens: ai.inputTokens, outputTokens: ai.outputTokens, credits: actualCost.credits, usd: actualCost.usd, krw: actualCost.krw, dryRun: ai.dryRun },
+      student: chargedStudent,
+      remainingCredits: chargedStudent.credit_limit - chargedStudent.credits_used
+    });
   } catch (e) { next(e); }
 });
 

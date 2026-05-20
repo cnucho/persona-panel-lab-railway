@@ -245,10 +245,13 @@
         <div>
           <label id="inputLabel" for="messageInput" data-i18n="sharedInput">공동 대화장에 입력</label>
           <textarea id="messageInput"></textarea>
+          <label for="editorInstruction" data-i18n="editorInstructionLabel">GPT 에디터 지시</label>
+          <textarea id="editorInstruction"></textarea>
         </div>
         <div class="row">
           <button class="primary" id="sendBtn" data-i18n="requestResponse">발언 요청</button>
           <button class="green" id="summaryBtn" data-i18n="createSummary">요약 생성</button>
+          <button class="green" id="editorBtn" data-i18n="runEditor">GPT 에디터</button>
           <button class="secondary" id="exportMdBtn">MD</button>
           <button class="secondary" id="exportDocxBtn">Word</button>
           <button class="secondary" id="exportHwpxBtn">HWPX</button>
@@ -311,9 +314,12 @@ const SYSTEM = {
     sharedInput: "공동 대화장에 입력",
     requestResponse: "발언 요청",
     createSummary: "요약 생성",
+    runEditor: "GPT 에디터",
+    editorInstructionLabel: "GPT 에디터 지시",
     usageHint: "사용량과 예상 비용이 여기에 표시됩니다.",
     sharedRoom: "공동 대화장",
     summaryRoom: "요약본",
+    editorRoom: "편집본",
     individualQuestion: "개별 질문",
     personaRoom: "퍼소나별 대화창",
     noPersonas: "아직 퍼소나가 없습니다.",
@@ -325,6 +331,7 @@ const SYSTEM = {
     personaAdded: "퍼소나가 추가되었습니다.",
     generating: "응답 생성 중입니다.",
     summarizing: "요약 생성 중입니다.",
+    editing: "GPT 에디터가 편집 중입니다.",
     startToDownload: "먼저 회의를 시작하세요.",
     entered: "입장 완료",
     mockNotice: "OPENAI_API_KEY가 없어 현재는 모의 응답으로 실행됩니다. 모의 응답은 크레딧을 차감하지 않습니다.",
@@ -339,6 +346,7 @@ const SYSTEM = {
     deepModel: "심화",
     charged: "차감",
     summaryCharged: "요약 차감",
+    editorCharged: "편집 차감",
     approx: "약",
     inputTokens: "입력",
     outputTokens: "출력",
@@ -348,6 +356,7 @@ const SYSTEM = {
     defaultPlace: "수업 토론",
     displayNamePlaceholder: "예: 2학년 3반 05번",
     messagePlaceholder: "예: 각 퍼소나는 이 분류 체계가 어떤 지식을 강화하고 어떤 지식을 지우는지 말해 주세요.",
+    editorInstructionPlaceholder: "예: 제출용 보고서처럼 제목, 핵심 쟁점, 퍼소나별 관점, 검증 필요 항목으로 정리해 주세요.",
     directInput: "직접 입력",
     presetIssue: "핵심 쟁점 묻기",
     presetIssueValue: "이 주제에서 당신의 전문 지식으로 가장 먼저 확인해야 할 쟁점은 무엇입니까?",
@@ -398,9 +407,12 @@ const SYSTEM = {
     sharedInput: "Message to Shared Room",
     requestResponse: "Request Response",
     createSummary: "Create Summary",
+    runEditor: "GPT Editor",
+    editorInstructionLabel: "GPT Editor Instruction",
     usageHint: "Usage and estimated cost will appear here.",
     sharedRoom: "Shared Room",
     summaryRoom: "Summary",
+    editorRoom: "Edited Draft",
     individualQuestion: "Individual Question",
     personaRoom: "Persona Room",
     noPersonas: "No personas yet.",
@@ -412,6 +424,7 @@ const SYSTEM = {
     personaAdded: "Persona added.",
     generating: "Generating response.",
     summarizing: "Generating summary.",
+    editing: "GPT editor is revising.",
     startToDownload: "Start a meeting first.",
     entered: "Entered.",
     mockNotice: "OPENAI_API_KEY is missing, so the app is running with mock responses. Mock responses do not consume credits.",
@@ -426,6 +439,7 @@ const SYSTEM = {
     deepModel: "Deep",
     charged: "Charged",
     summaryCharged: "Summary charged",
+    editorCharged: "Editing charged",
     approx: "approx.",
     inputTokens: "input",
     outputTokens: "output",
@@ -435,6 +449,7 @@ const SYSTEM = {
     defaultPlace: "Class discussion",
     displayNamePlaceholder: "e.g. Class 2-3, No. 05",
     messagePlaceholder: "e.g. Each persona should explain what knowledge this classification system strengthens and what knowledge it erases.",
+    editorInstructionPlaceholder: "e.g. Organize this as a submission-ready report with title, key issues, persona perspectives, and claims requiring verification.",
     directInput: "Custom question",
     presetIssue: "Ask core issue",
     presetIssueValue: "From your expert knowledge, what is the first issue we should examine in this topic?",
@@ -574,6 +589,7 @@ function applyDefaults(force = false) {
   if (force || isDefaultValue("place", "defaultPlace")) $("place").value = t("defaultPlace");
   $("displayName").placeholder = t("displayNamePlaceholder");
   $("messageInput").placeholder = t("messagePlaceholder");
+  $("editorInstruction").placeholder = t("editorInstructionPlaceholder");
 }
 
 function renderQuestionPresets() {
@@ -645,6 +661,7 @@ function displayChannel(channel) {
   const map = {
     "공동 대화장": t("sharedRoom"),
     "요약본": t("summaryRoom"),
+    "편집본": t("editorRoom"),
     "개별 질문": t("individualQuestion"),
     "퍼소나별 대화창": t("personaRoom")
   };
@@ -678,11 +695,11 @@ function renderPersonas() {
 
 function renderMessages() {
   const list = activeTab === "shared"
-    ? messages.filter((m) => m.channel === "공동 대화장" || m.channel === "요약본" || m.channel === "개별 질문" || m.model === null)
+    ? messages.filter((m) => m.channel === "공동 대화장" || m.channel === "요약본" || m.channel === "편집본" || m.channel === "개별 질문" || m.model === null)
     : messages.filter((m) => m.persona_id === activeTab || m.channel === "개별 질문");
   $("messages").innerHTML = list.length
     ? list.map((m) => {
-      const cls = m.channel === "요약본" ? "summary" : (m.model ? "ai" : "student");
+      const cls = m.channel === "요약본" || m.channel === "편집본" ? "summary" : (m.model ? "ai" : "student");
       const usage = m.credits_charged
         ? `<div class="usage">${t("charged")} ${m.credits_charged} credits · ${t("inputTokens")} ${m.tokens_in} / ${t("outputTokens")} ${m.tokens_out} · ${escapeHtml(m.model || "")}</div>`
         : "";
@@ -869,6 +886,32 @@ $("summaryBtn").onclick = async () => {
     setStatus(e.message, "danger");
   } finally {
     $("summaryBtn").disabled = false;
+  }
+};
+
+$("editorBtn").onclick = async () => {
+  try {
+    if (!student || !session) throw new Error(t("startFirst"));
+    $("editorBtn").disabled = true;
+    setStatus(t("editing"));
+    const data = await api(`/api/sessions/${session.id}/editor`, {
+      method: "POST",
+      body: {
+        studentId: student.id,
+        expertLanguage,
+        editorInstruction: $("editorInstruction").value
+      }
+    });
+    student = data.student;
+    saveState();
+    renderCredit(data.remainingCredits);
+    await loadSession();
+    const dry = data.usage.dryRun ? ` · ${t("mockResponse")}` : "";
+    setStatus(`${t("editorCharged")} ${data.usage.credits} credits · ${t("approx")} ${Math.round(data.usage.krw).toLocaleString()} KRW${dry}`, "good");
+  } catch (e) {
+    setStatus(e.message, "danger");
+  } finally {
+    $("editorBtn").disabled = false;
   }
 };
 
