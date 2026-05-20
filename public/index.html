@@ -7,12 +7,11 @@
   <style>
     :root {
       --bg: #f4f6f8;
-      --panel: #ffffff;
+      --panel: #fff;
       --ink: #162033;
       --muted: #647084;
       --line: #dfe5ee;
       --primary: #2457c5;
-      --primary-dark: #173f95;
       --green: #0f766e;
       --red: #b42318;
       --amber: #92400e;
@@ -53,7 +52,6 @@
       margin-bottom: 14px;
     }
     h2 { margin: 0 0 12px; font-size: 17px; }
-    h3 { margin: 16px 0 8px; font-size: 14px; }
     label { display: block; margin: 10px 0 5px; font-size: 13px; font-weight: 650; color: #334155; }
     input, textarea, select {
       width: 100%;
@@ -75,36 +73,22 @@
       color: #fff;
       white-space: nowrap;
     }
-    button:hover { filter: brightness(.96); }
     button:disabled { opacity: .55; cursor: not-allowed; }
     button.primary { background: var(--primary); }
     button.green { background: var(--green); }
     button.secondary { background: #e2e8f0; color: #172033; }
-    button.red { background: var(--red); }
     .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
     .row > * { flex: 1; min-width: 0; }
     .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
     .hint { color: var(--muted); font-size: 13px; }
-    .status {
-      padding: 10px;
-      border-radius: 7px;
-      background: #f1f5f9;
-      color: #334155;
-      font-size: 13px;
-      margin-top: 10px;
-    }
+    .status { padding: 10px; border-radius: 7px; background: #f1f5f9; color: #334155; font-size: 13px; margin-top: 10px; }
     .good { color: var(--green); }
     .danger { color: var(--red); }
     .warn { color: var(--amber); }
     .bar { height: 10px; background: #e2e8f0; border-radius: 999px; overflow: hidden; margin-top: 8px; }
     .bar > div { height: 100%; width: 0%; background: var(--primary); transition: width .2s; }
     .persona-list { display: grid; gap: 8px; margin-top: 10px; }
-    .persona-item {
-      border: 1px solid var(--line);
-      border-radius: 8px;
-      padding: 10px;
-      background: #fbfdff;
-    }
+    .persona-item { border: 1px solid var(--line); border-radius: 8px; padding: 10px; background: #fbfdff; }
     .persona-item strong { display: block; margin-bottom: 3px; }
     .tabs { display: flex; gap: 8px; flex-wrap: wrap; margin: 10px 0; }
     .tab {
@@ -137,23 +121,10 @@
     }
     .msg.ai { border-left-color: var(--primary); }
     .msg.summary { border-left-color: var(--green); }
-    .meta {
-      display: flex;
-      justify-content: space-between;
-      gap: 10px;
-      color: var(--muted);
-      font-size: 12px;
-      margin-bottom: 6px;
-    }
+    .meta { display: flex; justify-content: space-between; gap: 10px; color: var(--muted); font-size: 12px; margin-bottom: 6px; }
     .usage { margin-top: 8px; color: var(--muted); font-size: 12px; }
-    .toolbar {
-      display: grid;
-      grid-template-columns: 1fr auto;
-      gap: 10px;
-      align-items: end;
-      margin-top: 10px;
-    }
-    .compact { font-size: 12px; color: var(--muted); }
+    .toolbar { display: grid; grid-template-columns: 1fr auto; gap: 10px; align-items: end; margin-top: 10px; }
+    .compact { font-size: 12px; color: #c9d3e4; }
     @media (max-width: 940px) {
       header { grid-template-columns: 1fr; }
       main { grid-template-columns: 1fr; }
@@ -180,19 +151,19 @@
         <h2 data-i18n="sectionEntry">1. 입장과 예산</h2>
         <div class="grid2">
           <div>
-            <label for="interfaceLanguage" data-i18n="interfaceLanguage">인터페이스 언어</label>
+            <label for="interfaceLanguage" data-i18n="interfaceLanguage">시스템 언어</label>
             <select id="interfaceLanguage">
               <option value="ko">한국어</option>
               <option value="en">English</option>
             </select>
           </div>
           <div>
-            <label for="expertLanguage" data-i18n="expertLanguage">전문가 언어</label>
+            <label for="expertLanguage" data-i18n="expertLanguage">전문가 응답 언어</label>
             <select id="expertLanguage"></select>
           </div>
         </div>
         <label for="displayName" data-i18n="displayName">이름 또는 별칭</label>
-        <input id="displayName" placeholder="예: 2학년 3반 05번" />
+        <input id="displayName" />
         <label for="accessCode"><span data-i18n="accessCode">수업 코드</span> <span class="hint" data-i18n="ifNeeded">필요한 경우</span></label>
         <input id="accessCode" placeholder="teacher code" />
         <button class="primary" id="enterBtn" data-i18n="enter">입장</button>
@@ -203,9 +174,9 @@
       <section>
         <h2 data-i18n="sectionMeeting">2. 회의 만들기</h2>
         <label for="title" data-i18n="meetingTitle">회의 제목</label>
-        <input id="title" value="AI 분류 체계의 사회적 타당성 검토" />
+        <input id="title" />
         <label for="topic" data-i18n="topic">주제</label>
-        <textarea id="topic">AI가 사람이나 상황을 분류할 때 어떤 지식이 드러나고 어떤 지식이 사라지는지, 그리고 그 분류가 사회적으로 타당한지 검토한다.</textarea>
+        <textarea id="topic"></textarea>
         <div class="grid2">
           <div>
             <label for="meetingType" data-i18n="meetingType">회의 종류</label>
@@ -213,7 +184,7 @@
           </div>
           <div>
             <label for="place" data-i18n="place">상황</label>
-            <input id="place" value="수업 토론" />
+            <input id="place" />
           </div>
         </div>
         <button class="green" id="createSessionBtn" data-i18n="startMeeting">회의 시작</button>
@@ -263,13 +234,7 @@
         </div>
         <div>
           <label for="questionPreset" data-i18n="questionPreset">질문 프리셋</label>
-          <select id="questionPreset">
-            <option value="">직접 입력</option>
-            <option value="이 주제에서 당신의 전문 지식으로 가장 먼저 확인해야 할 쟁점은 무엇입니까?">핵심 쟁점 묻기</option>
-            <option value="당신의 가치관과 이해관계 때문에 특히 민감하게 보는 부분은 무엇입니까?">가치/이해관계 묻기</option>
-            <option value="이 주장 중 사실, 추정, 가치 판단, 검증 필요 항목을 나눠 주세요.">근거 분해하기</option>
-            <option value="다른 퍼소나의 관점에 동의하기 어려운 지점과 그 이유를 말해 주세요.">관점 충돌 만들기</option>
-          </select>
+          <select id="questionPreset"></select>
         </div>
       </div>
 
@@ -279,7 +244,7 @@
       <div class="toolbar">
         <div>
           <label id="inputLabel" for="messageInput" data-i18n="sharedInput">공동 대화장에 입력</label>
-          <textarea id="messageInput" placeholder="예: 각 퍼소나는 이 분류 체계가 어떤 지식을 강화하고 어떤 지식을 지우는지 말해 주세요."></textarea>
+          <textarea id="messageInput"></textarea>
         </div>
         <div class="row">
           <button class="primary" id="sendBtn" data-i18n="requestResponse">발언 요청</button>
@@ -304,13 +269,15 @@ let uiLanguage = localStorage.getItem("pp_ui_language") || "ko";
 let expertLanguage = localStorage.getItem("pp_expert_language") || "ko";
 
 const $ = (id) => document.getElementById(id);
-const i18n = {
+
+const SYSTEM = {
   ko: {
     appTitle: "전문가 퍼소나 인터뷰 랩",
     appSubtitle: "전문 영역의 지식, 가치관, 이해관계, 판단 규칙을 가진 가상 전문가를 만들고 인터뷰합니다.",
+    loadingConfig: "설정 불러오는 중",
     sectionEntry: "1. 입장과 예산",
-    interfaceLanguage: "인터페이스 언어",
-    expertLanguage: "전문가 언어",
+    interfaceLanguage: "시스템 언어",
+    expertLanguage: "전문가 응답 언어",
     displayName: "이름 또는 별칭",
     accessCode: "수업 코드",
     ifNeeded: "필요한 경우",
@@ -346,9 +313,11 @@ const i18n = {
     createSummary: "요약 생성",
     usageHint: "사용량과 예상 비용이 여기에 표시됩니다.",
     sharedRoom: "공동 대화장",
+    summaryRoom: "요약본",
+    individualQuestion: "개별 질문",
+    personaRoom: "퍼소나별 대화창",
     noPersonas: "아직 퍼소나가 없습니다.",
     noMessages: "아직 회의록이 없습니다.",
-    individualQuestion: "개별 질문",
     enterFirst: "먼저 입장하세요.",
     startFirst: "입장하고 회의를 먼저 시작하세요.",
     writeMessage: "메시지를 입력하세요.",
@@ -356,13 +325,45 @@ const i18n = {
     personaAdded: "퍼소나가 추가되었습니다.",
     generating: "응답 생성 중입니다.",
     summarizing: "요약 생성 중입니다.",
-    startToDownload: "먼저 회의를 시작하세요."
+    startToDownload: "먼저 회의를 시작하세요.",
+    entered: "입장 완료",
+    mockNotice: "OPENAI_API_KEY가 없어 현재는 모의 응답으로 실행됩니다. 모의 응답은 크레딧을 차감하지 않습니다.",
+    requestFailed: "요청 실패",
+    user: "사용자",
+    used: "사용",
+    remaining: "남음",
+    running: "진행 중",
+    round: "라운드",
+    baseModel: "기본",
+    summaryModel: "요약",
+    deepModel: "심화",
+    charged: "차감",
+    summaryCharged: "요약 차감",
+    approx: "약",
+    inputTokens: "입력",
+    outputTokens: "출력",
+    mockResponse: "모의 응답",
+    defaultTitle: "AI 분류 체계의 사회적 타당성 검토",
+    defaultTopic: "AI가 사람이나 상황을 분류할 때 어떤 지식이 드러나고 어떤 지식이 사라지는지, 그리고 그 분류가 사회적으로 타당한지 검토한다.",
+    defaultPlace: "수업 토론",
+    displayNamePlaceholder: "예: 2학년 3반 05번",
+    messagePlaceholder: "예: 각 퍼소나는 이 분류 체계가 어떤 지식을 강화하고 어떤 지식을 지우는지 말해 주세요.",
+    directInput: "직접 입력",
+    presetIssue: "핵심 쟁점 묻기",
+    presetIssueValue: "이 주제에서 당신의 전문 지식으로 가장 먼저 확인해야 할 쟁점은 무엇입니까?",
+    presetValues: "가치/이해관계 묻기",
+    presetValuesValue: "당신의 가치관과 이해관계 때문에 특히 민감하게 보는 부분은 무엇입니까?",
+    presetEvidence: "근거 분해하기",
+    presetEvidenceValue: "이 주장 중 사실, 추정, 가치 판단, 검증 필요 항목을 나눠 주세요.",
+    presetConflict: "관점 충돌 만들기",
+    presetConflictValue: "다른 퍼소나의 관점에 동의하기 어려운 지점과 그 이유를 말해 주세요."
   },
   en: {
     appTitle: "Expert Persona Interview Lab",
     appSubtitle: "Create and interview virtual experts with domain knowledge, values, interests, and judgment rules.",
+    loadingConfig: "Loading configuration",
     sectionEntry: "1. Entry and Budget",
-    interfaceLanguage: "Interface Language",
+    interfaceLanguage: "System Language",
     expertLanguage: "Expert Response Language",
     displayName: "Name or Alias",
     accessCode: "Class Code",
@@ -399,9 +400,11 @@ const i18n = {
     createSummary: "Create Summary",
     usageHint: "Usage and estimated cost will appear here.",
     sharedRoom: "Shared Room",
+    summaryRoom: "Summary",
+    individualQuestion: "Individual Question",
+    personaRoom: "Persona Room",
     noPersonas: "No personas yet.",
     noMessages: "No transcript yet.",
-    individualQuestion: "Individual Question",
     enterFirst: "Enter first.",
     startFirst: "Enter and start a meeting first.",
     writeMessage: "Write a message.",
@@ -409,67 +412,204 @@ const i18n = {
     personaAdded: "Persona added.",
     generating: "Generating response.",
     summarizing: "Generating summary.",
-    startToDownload: "Start a meeting first."
+    startToDownload: "Start a meeting first.",
+    entered: "Entered.",
+    mockNotice: "OPENAI_API_KEY is missing, so the app is running with mock responses. Mock responses do not consume credits.",
+    requestFailed: "Request failed",
+    user: "User",
+    used: "Used",
+    remaining: "Remaining",
+    running: "In progress",
+    round: "Round",
+    baseModel: "Base",
+    summaryModel: "Summary",
+    deepModel: "Deep",
+    charged: "Charged",
+    summaryCharged: "Summary charged",
+    approx: "approx.",
+    inputTokens: "input",
+    outputTokens: "output",
+    mockResponse: "mock response",
+    defaultTitle: "Social Validity Review of an AI Classification System",
+    defaultTopic: "Review what kinds of knowledge appear or disappear when AI classifies people or situations, and whether the classification is socially valid.",
+    defaultPlace: "Class discussion",
+    displayNamePlaceholder: "e.g. Class 2-3, No. 05",
+    messagePlaceholder: "e.g. Each persona should explain what knowledge this classification system strengthens and what knowledge it erases.",
+    directInput: "Custom question",
+    presetIssue: "Ask core issue",
+    presetIssueValue: "From your expert knowledge, what is the first issue we should examine in this topic?",
+    presetValues: "Ask values/interests",
+    presetValuesValue: "What part do you pay special attention to because of your values and interests?",
+    presetEvidence: "Separate evidence",
+    presetEvidenceValue: "Separate facts, assumptions, value judgments, and claims that require verification.",
+    presetConflict: "Create viewpoint conflict",
+    presetConflictValue: "What do you find difficult to agree with in another persona's perspective, and why?"
   }
 };
 
-function t(key) {
-  return (i18n[uiLanguage] || i18n.ko)[key] || i18n.ko[key] || key;
-}
-const templates = [
-  {
-    label: "분류 타당성 감사관",
-    name: "분류 타당성 감사관",
-    role: "AI 분류 체계가 어떤 사회적 효과와 배제 위험을 갖는지 검토하는 전문가",
-    expertise: "분류 기준 설계, 설명 가능성, 이의제기 절차, 교육 현장 맥락",
-    knowledge: "정확도만으로 타당성을 보장할 수 없으며, 분류명과 기준은 사람의 자기이해와 제도 접근성에 영향을 준다.",
-    values: "공정성, 설명 가능성, 이의제기권, 낙인 방지",
-    rules: "사실과 가치 판단을 분리하고, 분류가 누구에게 불리한지 반드시 묻는다.",
-    style: "분석적이고 신중하게 말하며, 자료가 부족하면 검증 필요라고 표시한다."
+const MEETING_LABELS = {
+  ko: {
+    expert_panel: "전문가 좌담회",
+    expert_interview: "전문가 심층면접",
+    delphi_lite: "델파이 라이트",
+    focus_group: "포커스 그룹",
+    stakeholder_test: "이해관계자 반응 테스트",
+    ad_reaction: "광고/서비스 반응 테스트",
+    classification_audit: "분류 타당성 감사"
   },
-  {
-    label: "데이터 검증자",
-    name: "데이터 검증자",
-    role: "모델 응답의 사실, 추정, 가치 판단을 구분하는 검증 담당자",
-    expertise: "데이터 품질 점검, 편향 탐지, 근거 확인 절차",
-    knowledge: "확인 가능한 사실과 확인 불가능한 추정은 분리해야 하며, 근거 없는 수치와 출처는 사용하면 안 된다.",
-    values: "진실성, 재현 가능성, 투명성",
-    rules: "주장마다 근거 수준을 묻고, 검증 경로가 없으면 결론 강도를 낮춘다.",
-    style: "짧고 단호하게 말하되 불확실성을 숨기지 않는다."
-  },
-  {
-    label: "이해관계자 대변자",
-    name: "이해관계자 대변자",
-    role: "정책이나 서비스가 학생, 교사, 보호자, 행정 담당자에게 다르게 받아들여지는 방식을 보는 전문가",
-    expertise: "교육 커뮤니케이션, 현장 수용성, 이해관계 조정",
-    knowledge: "같은 메시지도 집단별로 기대와 우려가 다르며, 수용 조건을 확인해야 한다.",
-    values: "사용성, 공정한 참여, 신뢰 형성",
-    rules: "집단별 기대, 우려, 반발 가능성을 나누어 말한다.",
-    style: "현장감 있게 말하지만 실제 여론조사 결과처럼 단정하지 않는다."
-  },
-  {
-    label: "혁신 질문자",
-    name: "혁신 질문자",
-    role: "기존 분류와 문제 설정 자체를 의심하고 다른 대안을 묻는 전문가",
-    expertise: "문제 재정의, 대안 설계, 창의적 평가 기준",
-    knowledge: "분류를 더 정교하게 만드는 것보다 분류하지 않아도 되는 조건을 찾는 것이 더 나을 때가 있다.",
-    values: "가능성, 인간 중심성, 제도 유연성",
-    rules: "기존 틀을 강화하기 전에 틀 자체의 필요성과 부작용을 묻는다.",
-    style: "질문 중심으로 말하고, 실행 불가능한 구호만 제안하지 않는다."
+  en: {
+    expert_panel: "Expert Panel",
+    expert_interview: "Expert Interview",
+    delphi_lite: "Delphi Lite",
+    focus_group: "Focus Group",
+    stakeholder_test: "Stakeholder Reaction Test",
+    ad_reaction: "Ad/Service Reaction Test",
+    classification_audit: "Classification Validity Audit"
   }
-];
+};
+
+const TEMPLATES = {
+  ko: [
+    {
+      label: "분류 타당성 감사관",
+      name: "분류 타당성 감사관",
+      role: "AI 분류 체계가 어떤 사회적 효과와 배제 위험을 갖는지 검토하는 전문가",
+      expertise: "분류 기준 설계, 설명 가능성, 이의제기 절차, 교육 현장 맥락",
+      knowledge: "정확도만으로 타당성을 보장할 수 없으며, 분류명과 기준은 사람의 자기이해와 제도 접근성에 영향을 준다.",
+      values: "공정성, 설명 가능성, 이의제기권, 낙인 방지",
+      rules: "사실과 가치 판단을 분리하고, 분류가 누구에게 불리한지 반드시 묻는다.",
+      style: "분석적이고 신중하게 말하며, 자료가 부족하면 검증 필요라고 표시한다."
+    },
+    {
+      label: "데이터 검증자",
+      name: "데이터 검증자",
+      role: "모델 응답의 사실, 추정, 가치 판단을 구분하는 검증 담당자",
+      expertise: "데이터 품질 점검, 편향 탐지, 근거 확인 절차",
+      knowledge: "확인 가능한 사실과 확인 불가능한 추정은 분리해야 하며, 근거 없는 수치와 출처는 사용하면 안 된다.",
+      values: "진실성, 재현 가능성, 투명성",
+      rules: "주장마다 근거 수준을 묻고, 검증 경로가 없으면 결론 강도를 낮춘다.",
+      style: "짧고 단호하게 말하되 불확실성을 숨기지 않는다."
+    },
+    {
+      label: "이해관계자 대변자",
+      name: "이해관계자 대변자",
+      role: "정책이나 서비스가 학생, 교사, 보호자, 행정 담당자에게 다르게 받아들여지는 방식을 보는 전문가",
+      expertise: "교육 커뮤니케이션, 현장 수용성, 이해관계 조정",
+      knowledge: "같은 메시지도 집단별로 기대와 우려가 다르며, 수용 조건을 확인해야 한다.",
+      values: "사용성, 공정한 참여, 신뢰 형성",
+      rules: "집단별 기대, 우려, 반발 가능성을 나누어 말한다.",
+      style: "현장감 있게 말하지만 실제 여론조사 결과처럼 단정하지 않는다."
+    },
+    {
+      label: "혁신 질문자",
+      name: "혁신 질문자",
+      role: "기존 분류와 문제 설정 자체를 의심하고 다른 대안을 묻는 전문가",
+      expertise: "문제 재정의, 대안 설계, 창의적 평가 기준",
+      knowledge: "분류를 더 정교하게 만드는 것보다 분류하지 않아도 되는 조건을 찾는 것이 더 나을 때가 있다.",
+      values: "가능성, 인간 중심성, 제도 유연성",
+      rules: "기존 틀을 강화하기 전에 틀 자체의 필요성과 부작용을 묻는다.",
+      style: "질문 중심으로 말하고, 실행 불가능한 구호만 제안하지 않는다."
+    }
+  ],
+  en: [
+    {
+      label: "Classification Validity Auditor",
+      name: "Classification Validity Auditor",
+      role: "An expert who reviews the social effects and exclusion risks of an AI classification system",
+      expertise: "Classification criteria design, explainability, appeal procedures, educational context",
+      knowledge: "Accuracy alone does not guarantee validity; labels and criteria affect self-understanding and institutional access.",
+      values: "Fairness, explainability, right to appeal, prevention of stigma",
+      rules: "Separate facts from value judgments, and always ask who may be disadvantaged by the classification.",
+      style: "Analytical and cautious; mark claims as requiring verification when evidence is insufficient."
+    },
+    {
+      label: "Data Verifier",
+      name: "Data Verifier",
+      role: "A reviewer who separates facts, assumptions, and value judgments in model responses",
+      expertise: "Data quality review, bias detection, evidence-checking procedures",
+      knowledge: "Verifiable facts must be separated from unverifiable assumptions; unsupported numbers and sources should not be used.",
+      values: "Truthfulness, reproducibility, transparency",
+      rules: "Ask for the evidence level of each claim; lower confidence when no verification path exists.",
+      style: "Brief and firm, without hiding uncertainty."
+    },
+    {
+      label: "Stakeholder Advocate",
+      name: "Stakeholder Advocate",
+      role: "An expert who examines how policies or services are received differently by students, teachers, guardians, and administrators",
+      expertise: "Educational communication, field acceptance, stakeholder coordination",
+      knowledge: "The same message can create different expectations and concerns for different groups, and acceptance conditions must be checked.",
+      values: "Usability, fair participation, trust-building",
+      rules: "Separate expectations, concerns, and possible resistance by stakeholder group.",
+      style: "Grounded in field context, but never presented as actual survey results."
+    },
+    {
+      label: "Innovation Questioner",
+      name: "Innovation Questioner",
+      role: "An expert who questions existing classifications and problem framing, then asks about alternatives",
+      expertise: "Problem reframing, alternative design, creative evaluation criteria",
+      knowledge: "Sometimes finding conditions where classification is unnecessary is better than making classification more precise.",
+      values: "Possibility, human-centeredness, institutional flexibility",
+      rules: "Before strengthening an existing frame, question the necessity and side effects of the frame itself.",
+      style: "Question-driven, while avoiding slogans that cannot be executed."
+    }
+  ]
+};
+
+function t(key) {
+  return (SYSTEM[uiLanguage] || SYSTEM.ko)[key] || SYSTEM.ko[key] || key;
+}
 
 function escapeHtml(s) {
   return String(s || "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 }
 
-function applyInterfaceLanguage() {
-  document.documentElement.lang = uiLanguage;
-  document.querySelectorAll("[data-i18n]").forEach((el) => {
-    el.textContent = t(el.dataset.i18n);
-  });
-  renderPersonas();
-  renderMessages();
+function isDefaultValue(id, key) {
+  const value = $(id).value;
+  return value === SYSTEM.ko[key] || value === SYSTEM.en[key] || value === "";
+}
+
+function applyDefaults(force = false) {
+  if (force || isDefaultValue("title", "defaultTitle")) $("title").value = t("defaultTitle");
+  if (force || isDefaultValue("topic", "defaultTopic")) $("topic").value = t("defaultTopic");
+  if (force || isDefaultValue("place", "defaultPlace")) $("place").value = t("defaultPlace");
+  $("displayName").placeholder = t("displayNamePlaceholder");
+  $("messageInput").placeholder = t("messagePlaceholder");
+}
+
+function renderQuestionPresets() {
+  const options = [
+    ["", t("directInput")],
+    [t("presetIssueValue"), t("presetIssue")],
+    [t("presetValuesValue"), t("presetValues")],
+    [t("presetEvidenceValue"), t("presetEvidence")],
+    [t("presetConflictValue"), t("presetConflict")]
+  ];
+  $("questionPreset").innerHTML = options.map(([value, label]) => `<option value="${escapeHtml(value)}">${escapeHtml(label)}</option>`).join("");
+}
+
+function renderMeetingTypes() {
+  const keys = Object.keys(config?.meetingTypes || MEETING_LABELS.ko);
+  const labels = MEETING_LABELS[uiLanguage] || MEETING_LABELS.ko;
+  $("meetingType").innerHTML = keys.map((key) => `<option value="${key}">${escapeHtml(labels[key] || config.meetingTypes[key] || key)}</option>`).join("");
+  if (!$("meetingType").value) $("meetingType").value = "classification_audit";
+}
+
+function renderTemplates(applyCurrent = false) {
+  const current = Number($("templateSelect").value || 0);
+  const templates = TEMPLATES[uiLanguage] || TEMPLATES.ko;
+  $("templateSelect").innerHTML = templates.map((item, index) => `<option value="${index}">${escapeHtml(item.label)}</option>`).join("");
+  $("templateSelect").value = String(Math.min(current, templates.length - 1));
+  if (applyCurrent) applyTemplate(templates[Number($("templateSelect").value)]);
+}
+
+function applyTemplate(item) {
+  $("pName").value = item.name;
+  $("pRole").value = item.role;
+  $("pExpertise").value = item.expertise;
+  $("pKnowledge").value = item.knowledge;
+  $("pValues").value = item.values;
+  $("pRules").value = item.rules;
+  $("pStyle").value = item.style;
 }
 
 function renderExpertLanguages() {
@@ -481,17 +621,6 @@ function renderExpertLanguages() {
   expertLanguage = $("expertLanguage").value;
 }
 
-async function api(path, opts = {}) {
-  const res = await fetch(path, {
-    headers: { "Content-Type": "application/json" },
-    ...opts,
-    body: opts.body ? JSON.stringify(opts.body) : undefined
-  });
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data.error || "요청 실패");
-  return data;
-}
-
 function setStatus(text, cls = "") {
   $("usageBox").innerHTML = `<span class="${cls}">${escapeHtml(text)}</span>`;
 }
@@ -501,41 +630,35 @@ function saveState() {
   localStorage.setItem("pp_session", JSON.stringify(session));
 }
 
+async function api(path, opts = {}) {
+  const res = await fetch(path, {
+    headers: { "Content-Type": "application/json" },
+    ...opts,
+    body: opts.body ? JSON.stringify(opts.body) : undefined
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || t("requestFailed"));
+  return data;
+}
+
+function displayChannel(channel) {
+  const map = {
+    "공동 대화장": t("sharedRoom"),
+    "요약본": t("summaryRoom"),
+    "개별 질문": t("individualQuestion"),
+    "퍼소나별 대화창": t("personaRoom")
+  };
+  return map[channel] || channel;
+}
+
 function renderCredit(remaining) {
   if (!student) return;
   const limit = student.credit_limit || config?.creditBudget || 30000;
   const used = student.credits_used || 0;
   const left = remaining ?? Math.max(0, limit - used);
   const pct = Math.min(100, Math.max(0, (used / limit) * 100));
-  const userLabel = uiLanguage === "en" ? "User" : "사용자";
-  const usedLabel = uiLanguage === "en" ? "Used" : "사용";
-  const leftLabel = uiLanguage === "en" ? "Remaining" : "남음";
-  $("creditBox").innerHTML = `${userLabel}: <b>${escapeHtml(student.display_name)}</b><br>${usedLabel}: ${used.toLocaleString()} / ${limit.toLocaleString()} credits<br>${leftLabel}: ${left.toLocaleString()} credits`;
+  $("creditBox").innerHTML = `${t("user")}: <b>${escapeHtml(student.display_name)}</b><br>${t("used")}: ${used.toLocaleString()} / ${limit.toLocaleString()} credits<br>${t("remaining")}: ${left.toLocaleString()} credits`;
   $("creditProgress").style.width = `${pct}%`;
-}
-
-
-
-function renderMeetingTypes() {
-  $("meetingType").innerHTML = Object.entries(config.meetingTypes)
-    .map(([key, label]) => `<option value="${key}">${escapeHtml(label)}</option>`)
-    .join("");
-  $("meetingType").value = "classification_audit";
-}
-
-function applyTemplate(t) {
-  $("pName").value = t.name;
-  $("pRole").value = t.role;
-  $("pExpertise").value = t.expertise;
-  $("pKnowledge").value = t.knowledge;
-  $("pValues").value = t.values;
-  $("pRules").value = t.rules;
-  $("pStyle").value = t.style;
-}
-
-function renderTemplates() {
-  $("templateSelect").innerHTML = templates.map((t, i) => `<option value="${i}">${escapeHtml(t.label)}</option>`).join("");
-  applyTemplate(templates[0]);
 }
 
 function renderPersonas() {
@@ -543,7 +666,7 @@ function renderPersonas() {
     ? personas.map((p) => `<div class="persona-item"><strong>${escapeHtml(p.name)}</strong><div class="hint">${escapeHtml(p.role)}</div></div>`).join("")
     : `<div class="hint">${escapeHtml(t("noPersonas"))}</div>`;
   const tabs = [{ id: "shared", name: t("sharedRoom") }, ...personas.map((p) => ({ id: p.id, name: p.name }))];
-  $("tabs").innerHTML = tabs.map((t) => `<button class="tab ${activeTab === t.id ? "active" : ""}" data-id="${t.id}">${escapeHtml(t.name)}</button>`).join("");
+  $("tabs").innerHTML = tabs.map((item) => `<button class="tab ${activeTab === item.id ? "active" : ""}" data-id="${item.id}">${escapeHtml(item.name)}</button>`).join("");
   document.querySelectorAll(".tab").forEach((el) => {
     el.onclick = () => {
       activeTab = el.dataset.id;
@@ -561,17 +684,15 @@ function renderMessages() {
     ? list.map((m) => {
       const cls = m.channel === "요약본" ? "summary" : (m.model ? "ai" : "student");
       const usage = m.credits_charged
-        ? `<div class="usage">차감 ${m.credits_charged} credits · 입력 ${m.tokens_in} / 출력 ${m.tokens_out} · ${escapeHtml(m.model || "")}</div>`
+        ? `<div class="usage">${t("charged")} ${m.credits_charged} credits · ${t("inputTokens")} ${m.tokens_in} / ${t("outputTokens")} ${m.tokens_out} · ${escapeHtml(m.model || "")}</div>`
         : "";
-      return `<div class="msg ${cls}"><div class="meta"><span>${escapeHtml(m.speaker)} · ${escapeHtml(m.channel)}</span><span>${new Date(m.created_at).toLocaleString()}</span></div>${escapeHtml(m.content)}${usage}</div>`;
+      return `<div class="msg ${cls}"><div class="meta"><span>${escapeHtml(m.speaker)} · ${escapeHtml(displayChannel(m.channel))}</span><span>${new Date(m.created_at).toLocaleString()}</span></div>${escapeHtml(m.content)}${usage}</div>`;
     }).join("")
     : `<div class="hint">${escapeHtml(t("noMessages"))}</div>`;
   const persona = personas.find((p) => p.id === activeTab);
   $("inputLabel").textContent = activeTab === "shared" ? t("sharedInput") : `${persona?.name || "Persona"}: ${t("individualQuestion")}`;
   $("messages").scrollTop = $("messages").scrollHeight;
 }
-
-
 
 async function loadSession() {
   if (!session) return;
@@ -580,44 +701,60 @@ async function loadSession() {
   personas = data.personas || [];
   messages = data.messages || [];
   saveState();
-  $("sessionInfo").textContent = `진행 중: ${session.title} · 라운드 ${session.round_count}`;
+  $("sessionInfo").textContent = `${t("running")}: ${session.title} · ${t("round")} ${session.round_count}`;
   renderPersonas();
   renderMessages();
 }
 
 function updateModelInfo() {
-  const base = uiLanguage === "en" ? "Base" : "기본";
-  const summary = uiLanguage === "en" ? "Summary" : "요약";
-  const deep = uiLanguage === "en" ? "Deep" : "심화";
-  $("modelInfo").textContent = `${base} ${config.defaultModel} · ${summary} ${config.summaryModel} · ${deep} ${config.premiumModel}`;
+  if (!config) {
+    $("modelInfo").textContent = t("loadingConfig");
+    return;
+  }
+  $("modelInfo").textContent = `${t("baseModel")} ${config.defaultModel} · ${t("summaryModel")} ${config.summaryModel} · ${t("deepModel")} ${config.premiumModel}`;
+}
+
+function applySystemLanguage({ forceDefaults = false, applyTemplateValues = false } = {}) {
+  document.documentElement.lang = uiLanguage;
+  document.title = t("appTitle");
+  document.querySelectorAll("[data-i18n]").forEach((el) => {
+    el.textContent = t(el.dataset.i18n);
+  });
+  applyDefaults(forceDefaults);
+  renderQuestionPresets();
+  renderMeetingTypes();
+  renderTemplates(applyTemplateValues);
+  updateModelInfo();
+  if (student) renderCredit();
+  renderPersonas();
+  renderMessages();
 }
 
 async function init() {
   config = await api("/api/config");
   $("interfaceLanguage").value = uiLanguage;
   renderExpertLanguages();
-  renderMeetingTypes();
-  renderTemplates();
-  applyInterfaceLanguage();
-  updateModelInfo();
-  if (student) renderCredit();
+  applySystemLanguage({ forceDefaults: true, applyTemplateValues: true });
   if (session) await loadSession();
-  if (!config.hasOpenAiKey) setStatus("OPENAI_API_KEY가 없어 현재는 모의 응답으로 실행됩니다. 모의 응답은 크레딧을 차감하지 않습니다.", "warn");
+  if (!config.hasOpenAiKey) setStatus(t("mockNotice"), "warn");
 }
 
 $("interfaceLanguage").onchange = (e) => {
   uiLanguage = e.target.value;
   localStorage.setItem("pp_ui_language", uiLanguage);
-  applyInterfaceLanguage();
-  updateModelInfo();
-  if (student) renderCredit();
+  applySystemLanguage({ applyTemplateValues: true });
 };
+
 $("expertLanguage").onchange = (e) => {
   expertLanguage = e.target.value;
   localStorage.setItem("pp_expert_language", expertLanguage);
 };
 
-$("templateSelect").onchange = (e) => applyTemplate(templates[Number(e.target.value)]);
+$("templateSelect").onchange = () => {
+  const templates = TEMPLATES[uiLanguage] || TEMPLATES.ko;
+  applyTemplate(templates[Number($("templateSelect").value)]);
+};
+
 $("questionPreset").onchange = (e) => {
   if (e.target.value) $("messageInput").value = e.target.value;
 };
@@ -631,7 +768,7 @@ $("enterBtn").onclick = async () => {
     student = data.student;
     saveState();
     renderCredit(data.remainingCredits);
-    setStatus(uiLanguage === "en" ? "Entered." : "입장 완료", "good");
+    setStatus(t("entered"), "good");
   } catch (e) {
     setStatus(e.message, "danger");
   }
@@ -707,12 +844,8 @@ $("sendBtn").onclick = async () => {
     renderCredit(data.remainingCredits);
     $("messageInput").value = "";
     await loadSession();
-    const dry = data.usage.dryRun ? (uiLanguage === "en" ? " · mock" : " · 모의 응답") : "";
-    const charged = uiLanguage === "en" ? "Charged" : "차감";
-    const approx = uiLanguage === "en" ? "approx." : "약";
-    const input = uiLanguage === "en" ? "input" : "입력";
-    const output = uiLanguage === "en" ? "output" : "출력";
-    setStatus(`${charged} ${data.usage.credits} credits · ${approx} ${Math.round(data.usage.krw).toLocaleString()} KRW · ${input} ${data.usage.inputTokens}, ${output} ${data.usage.outputTokens}${dry}`, "good");
+    const dry = data.usage.dryRun ? ` · ${t("mockResponse")}` : "";
+    setStatus(`${t("charged")} ${data.usage.credits} credits · ${t("approx")} ${Math.round(data.usage.krw).toLocaleString()} KRW · ${t("inputTokens")} ${data.usage.inputTokens}, ${t("outputTokens")} ${data.usage.outputTokens}${dry}`, "good");
   } catch (e) {
     setStatus(e.message, "danger");
   } finally {
@@ -730,10 +863,8 @@ $("summaryBtn").onclick = async () => {
     saveState();
     renderCredit(data.remainingCredits);
     await loadSession();
-    const dry = data.usage.dryRun ? (uiLanguage === "en" ? " · mock" : " · 모의 응답") : "";
-    const label = uiLanguage === "en" ? "Summary charged" : "요약 차감";
-    const approx = uiLanguage === "en" ? "approx." : "약";
-    setStatus(`${label} ${data.usage.credits} credits · ${approx} ${Math.round(data.usage.krw).toLocaleString()} KRW${dry}`, "good");
+    const dry = data.usage.dryRun ? ` · ${t("mockResponse")}` : "";
+    setStatus(`${t("summaryCharged")} ${data.usage.credits} credits · ${t("approx")} ${Math.round(data.usage.krw).toLocaleString()} KRW${dry}`, "good");
   } catch (e) {
     setStatus(e.message, "danger");
   } finally {
@@ -742,6 +873,7 @@ $("summaryBtn").onclick = async () => {
 };
 
 $("refreshBtn").onclick = () => loadSession().catch((e) => setStatus(e.message, "danger"));
+
 function downloadExport(ext) {
   if (!session) {
     setStatus(t("startToDownload"), "danger");
@@ -749,15 +881,10 @@ function downloadExport(ext) {
   }
   window.location.href = `/api/sessions/${session.id}/export.${ext}`;
 }
-$("exportMdBtn").onclick = () => {
-  downloadExport("md");
-};
-$("exportDocxBtn").onclick = () => {
-  downloadExport("docx");
-};
-$("exportHwpxBtn").onclick = () => {
-  downloadExport("hwpx");
-};
+
+$("exportMdBtn").onclick = () => downloadExport("md");
+$("exportDocxBtn").onclick = () => downloadExport("docx");
+$("exportHwpxBtn").onclick = () => downloadExport("hwpx");
 
 init().catch((e) => setStatus(e.message, "danger"));
 </script>
