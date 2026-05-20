@@ -1,41 +1,62 @@
-# Railway 배포 절차
+# Railway 배포 메모
 
-## 1. GitHub 저장소 준비
+## 배포 방식
 
-이 프로젝트를 GitHub에 올립니다.
+가장 단순한 방식은 GitHub 저장소를 Railway에 연결하는 것입니다.
+
+1. GitHub에 저장소 생성
+2. Railway → New Project → Deploy from GitHub repo
+3. 저장소 선택
+4. Add PostgreSQL
+5. 환경변수 입력
+6. 배포
+
+또는 CLI로는 다음 흐름을 쓸 수 있습니다.
 
 ```bash
-git remote add origin https://github.com/<계정명>/persona-panel-lab-railway.git
-git push -u origin main
+railway init
+railway add
+railway up
+railway domain
 ```
 
-## 2. Railway에서 배포
+## 환경변수
 
-1. Railway에서 New Project
-2. Deploy from GitHub repo
-3. 이 저장소 선택
-4. 환경변수 설정
-5. Deploy
-
-## 3. 필수 환경변수
-
-```bash
+```env
 OPENAI_API_KEY=sk-...
-AI_MODEL=gpt-5.5
-MAX_CREDITS_PER_USER=30000
-CREDIT_WEIGHTED_TOKENS_PER_CREDIT=10
-OUTPUT_TOKEN_WEIGHT=6
-ALLOW_OPEN_ACCESS=false
-ACCESS_CODES=class01-s01,class01-s02,class01-s03
-DATA_DIR=/data
+OPENAI_MODEL=gpt-5.4-mini
+MODEL_INPUT_USD_PER_1M=0.75
+MODEL_OUTPUT_USD_PER_1M=4.50
+DEFAULT_STUDENT_CREDIT_LIMIT=30000
+CREDIT_KRW_VALUE=0.1
+USD_KRW=1500
+MAX_OUTPUT_TOKENS=800
+MAX_ESTIMATED_INPUT_TOKENS=12000
+ALLOW_DEMO_WITHOUT_OPENAI=false
 ```
 
-## 4. 사용량 통제
+Railway Postgres를 붙이면 보통 `DATABASE_URL`이 자동으로 제공됩니다.
 
-Railway 자체의 프로젝트 Usage Limit도 설정합니다. 앱 내부 크레딧은 API 비용을 제어하고, Railway Usage Limit은 서버 비용을 제어합니다.
+## Railway 설정 파일
 
-## 5. 저장소 영속성
+`railway.toml`에서 다음을 지정합니다.
 
-사용자별 크레딧 기록은 `usage-store.json`에 저장됩니다. Railway에서 Volume을 `/data`에 연결해야 안정적으로 유지됩니다.
+```toml
+[deploy]
+startCommand = "npm start"
+healthcheckPath = "/api/health"
+```
 
-Volume 없이도 동작하지만 재배포/재시작 때 사용량 기록이 초기화될 수 있습니다.
+## 보안
+
+- `OPENAI_API_KEY`는 프론트엔드에 넣지 않습니다.
+- 모든 API 호출은 Express 서버를 거칩니다.
+- 학생 식별자는 실명이 아니라 수업용 코드로 둡니다.
+- 실제 학생의 성적, 상담 기록, 건강 정보, 가족 사정은 입력하지 않도록 안내합니다.
+
+## 운영 팁
+
+- 수업 전 `USD_KRW`와 모델 단가를 확인합니다.
+- 학생 1인당 30,000 credits를 넘지 않게 합니다.
+- 학급 전체 비용은 Railway 비용과 OpenAI 비용을 나누어 봅니다.
+- Railway 자체 usage limit도 별도로 설정합니다.

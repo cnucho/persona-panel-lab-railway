@@ -1,72 +1,85 @@
-# 가상 퍼소나 좌담회 실험실 — Railway 배포형
+# 가상 퍼소나 좌담회 실험실 — Railway/API 버전
 
-학생이 퍼소나를 만들고, 전문가 좌담회/면접/델파이/포커스 집단 인터뷰를 진행하며 회의록·요약본·보고서를 남기는 수업용 앱입니다.
+학생이 퍼소나를 만들고, 공동 대화장 또는 퍼소나별 대화창에서 전문가 좌담회·면접·델파이 라이트·포커스 그룹을 실행하는 최소 웹앱입니다.
 
-## 핵심 기능
+## 핵심 설계
 
-- 학생용 단일 앱
-- 퍼소나 생성: 역할, 대표 경험/지식, 가치, 판단 규칙, 한계
-- 공동 대화장: 모든 퍼소나가 같은 회의장을 듣는 라운드 생성
-- 퍼소나별 대화창: 특정 퍼소나와 깊게 면접
-- 회의 종류: 전문가 좌담회, 전문가 면접, 델파이 라이트, FGI, 이해관계자 반응 테스트, 광고/소비자 반응 테스트, 분류 타당성 감사
-- 회의록 유지, 요약본 생성, 학생 보고서 틀 생성
-- 사용자별 크레딧 한도: 기본 30,000 credits
-- Railway 배포 가능
+- 학생용 단일 앱입니다. 교사용 대시보드는 없습니다.
+- 모든 참가자가 듣는 **공동 대화장**이 기본입니다.
+- 퍼소나별 **개별 대화창**도 가능합니다.
+- 회의 제목, 주제, 시간, 장소가 기록됩니다.
+- 회의록이 저장되고 요약본을 생성할 수 있습니다.
+- 학생별 내부 크레딧 한도를 둡니다. 기본값은 `30,000 credits`입니다.
+- 기본 모델은 `gpt-5.4-mini`, 요약 모델은 `gpt-5.4-nano`입니다.
+
+## 크레딧 구조
+
+기본 설정은 다음입니다.
+
+```env
+CREDIT_BUDGET_PER_USER=30000
+KRW_PER_CREDIT=0.1
+USD_TO_KRW=1400
+```
+
+즉 `30,000 credits = 약 3,000원`으로 계산합니다. 실제 API 과금은 모델 가격과 입력/출력 토큰 수에 따라 달라집니다. 앱은 모델별 토큰 가격표를 기준으로 사용량을 추정해 차감합니다.
 
 ## 로컬 실행
 
 ```bash
+npm install
+cp .env.example .env
+# .env에 OPENAI_API_KEY 입력
 npm start
 ```
 
 브라우저에서 `http://localhost:3000`을 엽니다.
 
-`OPENAI_API_KEY`가 없으면 모의 응답 모드로 동작합니다.
+`OPENAI_API_KEY`가 없으면 데모 응답으로 실행됩니다.
 
-## Railway 환경변수
+## Railway 배포
 
-| 변수 | 기본값 | 설명 |
-|---|---:|---|
-| `OPENAI_API_KEY` | 없음 | OpenAI API 키. 없으면 mock mode |
-| `AI_MODEL` | `gpt-5.4-mini` | 사용할 모델 |
-| `MAX_CREDITS_PER_USER` | `30000` | 학생 1인당 내부 크레딧 한도 |
-| `CREDIT_WEIGHTED_TOKENS_PER_CREDIT` | `10` | 1 credit이 나타내는 weighted token 수 |
-| `OUTPUT_TOKEN_WEIGHT` | `6` | 출력 토큰 가중치. OpenAI 주요 모델의 출력 단가가 입력의 약 6배인 점 반영 |
-| `MAX_OUTPUT_TOKENS` | `700` | 기본 출력 길이 제한 |
-| `MAX_OUTPUT_TOKENS_HARD` | `1200` | 하드 출력 길이 제한 |
-| `ACCESS_CODES` | 빈 값 | 쉼표로 구분한 허용 코드 목록 |
-| `ALLOW_OPEN_ACCESS` | `true` | true면 임의 코드 사용 가능. 수업 운영 시 false 권장 |
-| `DATA_DIR` | `./data` | 사용량 기록 저장 위치. Railway Volume 사용 시 `/data` 권장 |
+1. GitHub에 이 저장소를 올립니다.
+2. Railway에서 New Project → Deploy from GitHub repo를 선택합니다.
+3. Variables에 아래 값을 넣습니다.
 
-## 권장 배포 설정
-
-수업 운영 시 다음을 권합니다.
-
-```bash
-AI_MODEL=gpt-5.5
-MAX_CREDITS_PER_USER=30000
-CREDIT_WEIGHTED_TOKENS_PER_CREDIT=10
-OUTPUT_TOKEN_WEIGHT=6
-ALLOW_OPEN_ACCESS=false
-ACCESS_CODES=class01-s01,class01-s02,class01-s03
-DATA_DIR=/data
+```env
+OPENAI_API_KEY=sk-...
+DEFAULT_MODEL=gpt-5.4-mini
+SUMMARY_MODEL=gpt-5.4-nano
+CREDIT_BUDGET_PER_USER=30000
+KRW_PER_CREDIT=0.1
+USD_TO_KRW=1400
+MAX_PERSONAS=5
+MAX_ROUNDS_PER_SESSION=6
+MAX_MESSAGES_PER_SESSION=80
+MAX_OUTPUT_TOKENS=700
+REQUIRE_ACCESS_CODE=false
+CLASSROOM_SHARED_SECRET=change-this
 ```
 
-Railway Volume을 `/data`에 연결하면 사용량 기록이 재시작 후에도 유지됩니다. Volume이 없으면 재시작 시 `data/usage-store.json`이 사라질 수 있습니다.
+4. 장기간 기록을 유지하려면 Railway Postgres를 붙이고 `DATABASE_URL`을 서비스 변수로 연결합니다.
+5. Railway Workspace Usage에서 Compute hard limit을 설정합니다.
 
-## 크레딧 계산
+## 수업 운영 권장값
 
-앱 내부 크레딧은 실제 원화가 아니라 사용량 제어 단위입니다.
+- 퍼소나 수: 3~4명
+- 라운드 수: 4~6회
+- 발언 길이: 짧게
+- 공동 대화장 중심
+- 요약본은 마지막 1회만 생성
+- 비싼 모델은 전체 학생용 기본 모델로 쓰지 않기
 
-```text
-weighted_tokens = input_tokens + OUTPUT_TOKEN_WEIGHT × output_tokens
-credits = ceil(weighted_tokens / CREDIT_WEIGHTED_TOKENS_PER_CREDIT)
-```
+## 회의 종류
 
-기본값에서는 `1 credit ≈ 10 weighted tokens`입니다. 30,000 credits는 약 300,000 weighted tokens입니다.
+- 전문가 좌담회
+- 전문가 면접
+- 델파이 라이트
+- 포커스 집단 인터뷰
+- 이해관계자 반응 테스트
+- 광고·소비자 반응 테스트
+- 분류 타당성 감사
 
-## 수업상 주의
+## 교육적 주의
 
-이 앱은 실제 전문가 조사, 델파이 조사, FGI, 소비자 테스트를 대체하지 않습니다. 실제 사람을 만나기 전 관점과 질문의 빈틈을 찾는 예비 시뮬레이터입니다.
-
-실제 학생의 이름, 성적, 건강정보, 가족 사정, 상담 내용 등은 입력하지 않도록 안내해야 합니다.
+이 앱은 실제 전문가 조사, 실제 델파이 조사, 실제 소비자 테스트를 대체하지 않습니다. 학생들이 관점·지식·가치·분류 기준이 판단을 어떻게 바꾸는지 실험하기 위한 시뮬레이터입니다.

@@ -1,0 +1,16 @@
+{
+  "version": 1,
+  "sessions": {
+    "678e82d907d3e6e7": {
+      "id": "678e82d907d3e6e7",
+      "label": "test…",
+      "createdAt": "2026-05-20T16:07:05.070Z",
+      "lastSeenAt": "2026-05-20T16:07:05.070Z",
+      "creditsUsed": 0,
+      "callCount": 0,
+      "inputTokens": 0,
+      "outputTokens": 0,
+      "logs": []
+    }
+  }
+}
