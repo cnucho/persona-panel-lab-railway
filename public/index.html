@@ -271,7 +271,9 @@
         <div class="row">
           <button class="primary" id="sendBtn">발언 요청</button>
           <button class="green" id="summaryBtn">요약 생성</button>
-          <button class="secondary" id="exportBtn">Markdown</button>
+          <button class="secondary" id="exportMdBtn">MD</button>
+          <button class="secondary" id="exportDocxBtn">Word</button>
+          <button class="secondary" id="exportHwpxBtn">HWPX</button>
         </div>
       </div>
       <div class="status" id="usageBox">사용량과 예상 비용이 여기에 표시됩니다.</div>
@@ -563,8 +565,21 @@ $("summaryBtn").onclick = async () => {
 };
 
 $("refreshBtn").onclick = () => loadSession().catch((e) => setStatus(e.message, "danger"));
-$("exportBtn").onclick = () => {
-  if (session) window.open(`/api/sessions/${session.id}/export.md`, "_blank");
+function downloadExport(ext) {
+  if (!session) {
+    setStatus("먼저 회의를 시작하세요.", "danger");
+    return;
+  }
+  window.location.href = `/api/sessions/${session.id}/export.${ext}`;
+}
+$("exportMdBtn").onclick = () => {
+  downloadExport("md");
+};
+$("exportDocxBtn").onclick = () => {
+  downloadExport("docx");
+};
+$("exportHwpxBtn").onclick = () => {
+  downloadExport("hwpx");
 };
 
 init().catch((e) => setStatus(e.message, "danger"));

@@ -7,6 +7,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import OpenAI from 'openai';
 import pg from 'pg';
+import JSZip from 'jszip';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -425,6 +426,145 @@ function checkOwner(session, studentId) {
   if (session.student_id !== studentId) throw apiError(403, '세션 접근 권한이 없습니다.');
 }
 
+function xmlEscape(value) {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&apos;');
+}
+
+function safeFileName(value, ext) {
+  const base = String(value || 'persona-interview')
+    .normalize('NFKC')
+    .replace(/[\\/:*?"<>|]/g, '-')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 80) || 'persona-interview';
+  return `${base}.${ext}`;
+}
+
+function exportMarkdown(session, personas, messages) {
+  return `# ${session.title}
+
+- 회의 종류: ${(MEETING_TYPES[session.meeting_type] || {}).label}
+- 주제: ${session.topic}
+- 장소/상황: ${session.place || '온라인'}
+- 시작 시각: ${session.started_at || session.created_at}
+
+## 퍼소나
+
+${personas.map((p) => `### ${p.name}
+- 역할: ${p.role}
+- 전문 영역과 경험: ${p.expertise || ''}
+- 지식: ${p.knowledge || ''}
+- 가치: ${p.values_text || ''}
+- 판단 규칙: ${p.rules || ''}
+- 말하기 방식: ${p.style || ''}`).join('\n\n')}
+
+## 회의록
+
+${messages.map((m) => `### ${m.speaker} / ${m.channel}
+${m.content}
+
+- 시각: ${m.created_at}
+- 모델: ${m.model || '-'} / 입력 ${m.tokens_in || 0}, 출력 ${m.tokens_out || 0}, 차감 ${m.credits_charged || 0} credits`).join('\n\n')}
+`;
+}
+
+function markdownToPlainLines(markdown) {
+  return markdown
+    .replace(/^### /gm, '')
+    .replace(/^## /gm, '')
+    .replace(/^# /gm, '')
+    .split(/\r?\n/)
+    .map((line) => line.trimEnd());
+}
+
+function docxParagraph(line) {
+  const text = xmlEscape(line || ' ');
+  return `<w:p><w:r><w:t xml:space="preserve">${text}</w:t></w:r></w:p>`;
+}
+
+async function buildDocxBuffer(markdown) {
+  const zip = new JSZip();
+  const paragraphs = markdownToPlainLines(markdown).map(docxParagraph).join('');
+  zip.file('[Content_Types].xml', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+  <Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/>
+</Types>`);
+  zip.folder('_rels').file('.rels', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
+</Relationships>`);
+  zip.folder('word').file('document.xml', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:body>
+    ${paragraphs}
+    <w:sectPr><w:pgSz w:w="11906" w:h="16838"/><w:pgMar w:top="1440" w:right="1440" w:bottom="1440" w:left="1440"/></w:sectPr>
+  </w:body>
+</w:document>`);
+  zip.folder('word').file('styles.xml', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:style w:type="paragraph" w:default="1" w:styleId="Normal">
+    <w:name w:val="Normal"/>
+    <w:rPr><w:rFonts w:ascii="Malgun Gothic" w:hAnsi="Malgun Gothic" w:eastAsia="Malgun Gothic"/><w:sz w:val="22"/></w:rPr>
+  </w:style>
+</w:styles>`);
+  return zip.generateAsync({ type: 'nodebuffer', compression: 'DEFLATE' });
+}
+
+function hwpxPara(line, index) {
+  return `<hp:p id="${index}" paraPrIDRef="0" styleIDRef="0"><hp:run charPrIDRef="0"><hp:t>${xmlEscape(line || ' ')}</hp:t></hp:run></hp:p>`;
+}
+
+async function buildHwpxBuffer(markdown) {
+  const zip = new JSZip();
+  const paragraphs = markdownToPlainLines(markdown).map(hwpxPara).join('');
+  zip.file('mimetype', 'application/hwp+zip', { compression: 'STORE' });
+  zip.folder('META-INF').file('container.xml', `<?xml version="1.0" encoding="UTF-8"?>
+<container version="1.0">
+  <rootfiles>
+    <rootfile full-path="Contents/content.hpf" media-type="application/hwpml-package+xml"/>
+  </rootfiles>
+</container>`);
+  zip.folder('Contents').file('content.hpf', `<?xml version="1.0" encoding="UTF-8"?>
+<opf:package xmlns:opf="http://www.idpf.org/2007/opf" version="3.0">
+  <opf:metadata><opf:title>전문가 퍼소나 인터뷰</opf:title></opf:metadata>
+  <opf:manifest>
+    <opf:item id="header" href="header.xml" media-type="application/xml"/>
+    <opf:item id="section0" href="section0.xml" media-type="application/xml"/>
+  </opf:manifest>
+  <opf:spine><opf:itemref idref="section0"/></opf:spine>
+</opf:package>`);
+  zip.folder('Contents').file('header.xml', `<?xml version="1.0" encoding="UTF-8"?>
+<hh:head xmlns:hh="http://www.hancom.co.kr/hwpml/2011/head" xmlns:hc="http://www.hancom.co.kr/hwpml/2011/core">
+  <hh:beginNum page="1" footnote="1" endnote="1" pic="1" tbl="1" equation="1"/>
+  <hh:refList>
+    <hh:fontfaces itemCnt="1"><hh:fontface lang="HANGUL" fontCnt="1"><hh:font id="0" face="맑은 고딕"/></hh:fontface></hh:fontfaces>
+    <hh:borderFills itemCnt="1"><hh:borderFill id="0"/></hh:borderFills>
+    <hh:charProperties itemCnt="1"><hh:charPr id="0" height="1000" textColor="#000000"/></hh:charProperties>
+    <hh:paraProperties itemCnt="1"><hh:paraPr id="0"><hh:align horizontal="LEFT" vertical="BASELINE"/></hh:paraPr></hh:paraProperties>
+    <hh:styles itemCnt="1"><hh:style id="0" type="PARA" name="바탕글" engName="Normal" paraPrIDRef="0" charPrIDRef="0"/></hh:styles>
+  </hh:refList>
+</hh:head>`);
+  zip.folder('Contents').file('section0.xml', `<?xml version="1.0" encoding="UTF-8"?>
+<hs:sec xmlns:hs="http://www.hancom.co.kr/hwpml/2011/section" xmlns:hp="http://www.hancom.co.kr/hwpml/2011/paragraph">
+  ${paragraphs}
+</hs:sec>`);
+  return zip.generateAsync({ type: 'nodebuffer', compression: 'DEFLATE' });
+}
+
+function sendDownload(res, { filename, contentType, body }) {
+  res.setHeader('Content-Type', contentType);
+  res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${encodeURIComponent(filename)}`);
+  res.send(body);
+}
+
 const app = express();
 app.use(helmet({ contentSecurityPolicy: false }));
 app.use(morgan('dev'));
@@ -645,33 +785,38 @@ ${transcript}`;
 app.get('/api/sessions/:id/export.md', async (req, res, next) => {
   try {
     const { session, personas, messages } = await loadSessionBundle(req.params.id);
-    const md = `# ${session.title}
+    const md = exportMarkdown(session, personas, messages);
+    sendDownload(res, {
+      filename: safeFileName(session.title, 'md'),
+      contentType: 'text/markdown; charset=utf-8',
+      body: md
+    });
+  } catch (e) { next(e); }
+});
 
-- 회의 종류: ${(MEETING_TYPES[session.meeting_type] || {}).label}
-- 주제: ${session.topic}
-- 장소/상황: ${session.place || '온라인'}
-- 시작 시각: ${session.started_at || session.created_at}
+app.get('/api/sessions/:id/export.docx', async (req, res, next) => {
+  try {
+    const { session, personas, messages } = await loadSessionBundle(req.params.id);
+    const md = exportMarkdown(session, personas, messages);
+    const body = await buildDocxBuffer(md);
+    sendDownload(res, {
+      filename: safeFileName(session.title, 'docx'),
+      contentType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      body
+    });
+  } catch (e) { next(e); }
+});
 
-## 퍼소나
-
-${personas.map((p) => `### ${p.name}
-- 역할: ${p.role}
-- 전문 영역과 경험: ${p.expertise || ''}
-- 지식: ${p.knowledge || ''}
-- 가치: ${p.values_text || ''}
-- 판단 규칙: ${p.rules || ''}
-- 말하기 방식: ${p.style || ''}`).join('\n\n')}
-
-## 회의록
-
-${messages.map((m) => `### ${m.speaker} / ${m.channel}
-${m.content}
-
-- 시각: ${m.created_at}
-- 모델: ${m.model || '-'} / 입력 ${m.tokens_in || 0}, 출력 ${m.tokens_out || 0}, 차감 ${m.credits_charged || 0} credits`).join('\n\n')}
-`;
-    res.setHeader('Content-Type', 'text/markdown; charset=utf-8');
-    res.send(md);
+app.get('/api/sessions/:id/export.hwpx', async (req, res, next) => {
+  try {
+    const { session, personas, messages } = await loadSessionBundle(req.params.id);
+    const md = exportMarkdown(session, personas, messages);
+    const body = await buildHwpxBuffer(md);
+    sendDownload(res, {
+      filename: safeFileName(session.title, 'hwpx'),
+      contentType: 'application/hwp+zip',
+      body
+    });
   } catch (e) { next(e); }
 });
 
