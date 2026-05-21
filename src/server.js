@@ -229,8 +229,8 @@ const LANGUAGE_OPTIONS = {
 };
 
 const EXPORT_LABELS = {
-  ko: { meetingType: '회의 종류', topic: '주제', place: '장소/상황', startedAt: '시작 시각', personas: '퍼소나', role: '역할', expertise: '전문 영역과 경험', knowledge: '지식', values: '가치', rules: '판단 규칙', style: '말하기 방식', limits: '한계', transcript: '회의록', time: '시각', model: '모델', input: '입력', output: '출력', credits: '차감' },
-  en: { meetingType: 'Meeting type', topic: 'Topic', place: 'Place/context', startedAt: 'Started at', personas: 'Personas', role: 'Role', expertise: 'Expertise and experience', knowledge: 'Knowledge', values: 'Values', rules: 'Judgment rules', style: 'Speaking style', limits: 'Limits', transcript: 'Transcript', time: 'Time', model: 'Model', input: 'Input', output: 'Output', credits: 'Credits charged' },
+  ko: { meetingType: '회의 종류', topic: '주제', place: '장소/상황', startedAt: '시작 시각', student: '학생', usedCredits: '사용 크레딧', personas: '퍼소나', name: '이름', role: '역할 / 사회적 위치', expertise: '전문성 / 대표 경험', knowledge: '사용할 지식', values: '중시 가치', rules: '판단 규칙', style: '말하기 방식', limits: '한계', transcript: '회의록', summary: '요약본', time: '시각', channel: '채널', speaker: '발언자', content: '내용', model: '사용 모델', input: '입력 토큰', output: '출력 토큰', credits: '차감 크레딧' },
+  en: { meetingType: 'Meeting type', topic: 'Topic', place: 'Place/context', startedAt: 'Started at', student: 'Student', usedCredits: 'Credits used', personas: 'Personas', name: 'Name', role: 'Role / social position', expertise: 'Expertise / representative experience', knowledge: 'Knowledge to use', values: 'Values', rules: 'Judgment rules', style: 'Speaking style', limits: 'Limits', transcript: 'Transcript', summary: 'Summary', time: 'Time', channel: 'Channel', speaker: 'Speaker', content: 'Content', model: 'Model used', input: 'Input tokens', output: 'Output tokens', credits: 'Credits charged' },
   de: { meetingType: 'Sitzungsart', topic: 'Thema', place: 'Ort/Kontext', startedAt: 'Beginn', personas: 'Personas', role: 'Rolle', expertise: 'Fachgebiet und Erfahrung', knowledge: 'Wissen', values: 'Werte', rules: 'Beurteilungsregeln', style: 'Sprechweise', limits: 'Grenzen', transcript: 'Protokoll', time: 'Zeit', model: 'Modell', input: 'Eingabe', output: 'Ausgabe', credits: 'Abgezogene Credits' },
   kk: { meetingType: 'Кездесу түрі', topic: 'Тақырып', place: 'Орын/жағдай', startedAt: 'Басталу уақыты', personas: 'Персоналар', role: 'Рөлі', expertise: 'Сараптама және тәжірибе', knowledge: 'Білім', values: 'Құндылықтар', rules: 'Бағалау ережелері', style: 'Сөйлеу мәнері', limits: 'Шектеулер', transcript: 'Хаттама', time: 'Уақыт', model: 'Модель', input: 'Кіріс', output: 'Шығыс', credits: 'Шегерілген кредиттер' },
   am: { meetingType: 'የስብሰባ ዓይነት', topic: 'ርዕስ', place: 'ቦታ/አውድ', startedAt: 'የተጀመረበት ጊዜ', personas: 'ፐርሶናዎች', role: 'ሚና', expertise: 'ሙያ እና ተሞክሮ', knowledge: 'እውቀት', values: 'እሴቶች', rules: 'የፍርድ መመሪያዎች', style: 'የንግግር ዘይቤ', limits: 'ገደቦች', transcript: 'የስብሰባ መዝገብ', time: 'ጊዜ', model: 'ሞዴል', input: 'ግቤት', output: 'ውጤት', credits: 'የተቀነሱ ክሬዲቶች' },
@@ -823,18 +823,47 @@ function normalizedLanguage(value) {
   return LANGUAGE_OPTIONS[value] ? value : 'ko';
 }
 
-function exportMarkdown(session, personas, messages, languageKey = 'ko') {
-  const labels = EXPORT_LABELS[normalizedLanguage(languageKey)] || EXPORT_LABELS.ko;
+function exportLabels(languageKey = 'ko') {
+  return { ...EXPORT_LABELS.ko, ...(EXPORT_LABELS[normalizedLanguage(languageKey)] || {}) };
+}
+
+function exportChannelLabel(channel) {
+  if (channel === '공동 대화장') return '공동 대화장';
+  if (channel === '개별 질문' || channel === '퍼소나별 대화창') return '퍼소나별 대화창';
+  return channel || '-';
+}
+
+function summaryExportChecklist() {
+  return [
+    '핵심 논의',
+    '합의점',
+    '불일치점',
+    '검증 필요 주장',
+    '사실/추정/가치 판단',
+    '인간 최종 판단 필요 부분',
+    '학생 성찰 질문'
+  ].map((item) => `- ${item}: 아래 생성 요약본에서 확인`).join('\n');
+}
+
+function exportMarkdown(session, personas, messages, languageKey = 'ko', student = null) {
+  const labels = exportLabels(languageKey);
+  const transcriptMessages = messages.filter((m) => m.channel !== '요약본' && m.channel !== '편집본');
+  const summaryMessages = messages.filter((m) => m.channel === '요약본');
+  const latestSummary = summaryMessages.at(-1)?.content || session.rolling_summary || '아직 생성된 요약본이 없습니다.';
+  const usedCredits = messages.reduce((sum, m) => sum + Number(m.credits_charged || 0), 0);
   return `# ${session.title}
 
 - ${labels.meetingType}: ${meetingTypeDetails(session.meeting_type).label}
 - ${labels.topic}: ${session.topic}
 - ${labels.place}: ${session.place || '온라인'}
 - ${labels.startedAt}: ${session.started_at || session.created_at}
+- ${labels.student}: ${student?.display_name || session.student_id}
+- ${labels.usedCredits}: ${usedCredits}
 
 ## ${labels.personas}
 
 ${personas.map((p) => `### ${p.name}
+- ${labels.name}: ${p.name}
 - ${labels.role}: ${p.role}
 - ${labels.expertise}: ${p.expertise || ''}
 - ${labels.knowledge}: ${p.knowledge || ''}
@@ -845,11 +874,26 @@ ${personas.map((p) => `### ${p.name}
 
 ## ${labels.transcript}
 
-${messages.map((m) => `### ${m.speaker} / ${m.channel}
+${transcriptMessages.map((m) => `### ${m.created_at} / ${m.speaker}
+- ${labels.time}: ${m.created_at}
+- ${labels.channel}: ${exportChannelLabel(m.channel)}
+- ${labels.speaker}: ${m.speaker}
+- ${labels.content}:
+
 ${m.content}
 
-- ${labels.time}: ${m.created_at}
-- ${labels.model}: ${m.model || '-'} / ${labels.input} ${m.tokens_in || 0}, ${labels.output} ${m.tokens_out || 0}, ${labels.credits} ${m.credits_charged || 0}`).join('\n\n')}
+- ${labels.model}: ${m.model || '-'}
+- ${labels.input}: ${m.tokens_in || 0}
+- ${labels.output}: ${m.tokens_out || 0}
+- ${labels.credits}: ${m.credits_charged || 0}`).join('\n\n') || '아직 회의록이 없습니다.'}
+
+## ${labels.summary}
+
+${summaryExportChecklist()}
+
+### 생성 요약본
+
+${latestSummary}
 `;
 }
 
@@ -1382,9 +1426,11 @@ ${source}`;
 app.get('/api/sessions/:id/export.md', async (req, res, next) => {
   try {
     const studentId = requireStudentId(req.query.studentId);
+    const student = await store.getStudent(studentId);
+    if (!student) throw apiError(404, '학생 세션을 찾을 수 없습니다.');
     const { session, personas, messages } = await loadSessionBundle(req.params.id);
     checkOwner(session, studentId);
-    const md = exportMarkdown(session, personas, messages, req.query.language);
+    const md = exportMarkdown(session, personas, messages, req.query.language, student);
     sendDownload(res, {
       filename: safeFileName(session.title, 'md'),
       contentType: 'text/markdown; charset=utf-8',
@@ -1396,9 +1442,11 @@ app.get('/api/sessions/:id/export.md', async (req, res, next) => {
 app.get('/api/sessions/:id/export.docx', async (req, res, next) => {
   try {
     const studentId = requireStudentId(req.query.studentId);
+    const student = await store.getStudent(studentId);
+    if (!student) throw apiError(404, '학생 세션을 찾을 수 없습니다.');
     const { session, personas, messages } = await loadSessionBundle(req.params.id);
     checkOwner(session, studentId);
-    const md = exportMarkdown(session, personas, messages, req.query.language);
+    const md = exportMarkdown(session, personas, messages, req.query.language, student);
     const body = await buildDocxBuffer(md);
     sendDownload(res, {
       filename: safeFileName(session.title, 'docx'),
@@ -1411,9 +1459,11 @@ app.get('/api/sessions/:id/export.docx', async (req, res, next) => {
 app.get('/api/sessions/:id/export.hwpx', async (req, res, next) => {
   try {
     const studentId = requireStudentId(req.query.studentId);
+    const student = await store.getStudent(studentId);
+    if (!student) throw apiError(404, '학생 세션을 찾을 수 없습니다.');
     const { session, personas, messages } = await loadSessionBundle(req.params.id);
     checkOwner(session, studentId);
-    const md = exportMarkdown(session, personas, messages, req.query.language);
+    const md = exportMarkdown(session, personas, messages, req.query.language, student);
     const body = await buildHwpxBuffer(md);
     sendDownload(res, {
       filename: safeFileName(session.title, 'hwpx'),
