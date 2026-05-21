@@ -32,8 +32,11 @@ npm start
 기본값은 수업 운영을 기준으로 보수적으로 잡혀 있습니다.
 
 ```env
+# 학생 1인당 기본 제공 크레딧
 CREDIT_BUDGET_PER_USER=30000
+# API 원가 1 USD당 차감할 크레딧
 CREDITS_PER_USD_COST=14000
+# 구매 기준 1 credit = 1원
 PURCHASE_KRW_PER_CREDIT=1
 MAX_PERSONAS=5
 MAX_ROUNDS_PER_SESSION=8
