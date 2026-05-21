@@ -200,6 +200,23 @@ function personaThreadRulesPrompt() {
   return PERSONA_THREAD_RULES.map((rule, index) => `${index + 1}. ${rule}`).join('\n');
 }
 
+const SUMMARY_SECTIONS = [
+  '핵심 논의 요약',
+  '퍼소나별 주요 주장',
+  '합의점',
+  '불일치점',
+  '검증 가능한 사실',
+  '확인 불가능한 추정',
+  '가치 판단',
+  '검증 필요 주장',
+  '인간이 최종 판단해야 할 부분',
+  '학생 성찰 질문'
+];
+
+function summarySectionsPrompt() {
+  return SUMMARY_SECTIONS.map((section, index) => `${index + 1}. ${section}`).join('\n');
+}
+
 const LANGUAGE_OPTIONS = {
   ko: { label: '한국어', instruction: '모든 전문가 발언과 요약을 자연스러운 한국어로 작성한다.' },
   en: { label: 'English', instruction: 'Write all expert responses and summaries in natural English.' },
@@ -1065,6 +1082,7 @@ app.get('/api/config', (req, res) => {
     meetingTypeDetails: MEETING_TYPE_DETAILS,
     personaPromptRules: PERSONA_PROMPT_RULES,
     personaThreadRules: PERSONA_THREAD_RULES,
+    summarySections: SUMMARY_SECTIONS,
     depthPresets: Object.fromEntries(Object.entries(DEPTH_PRESETS).map(([k, v]) => [k, { label: v.label, maxOutputTokens: v.maxOutputTokens }])),
     languages: Object.fromEntries(Object.entries(LANGUAGE_OPTIONS).map(([k, v]) => [k, v.label])),
     limits: { maxPersonas: cfg.maxPersonas, maxRounds: cfg.maxRounds, maxMessages: cfg.maxMessages, maxOutputTokens: cfg.maxOutputTokens }
@@ -1265,7 +1283,11 @@ app.post('/api/sessions/:id/summary', async (req, res, next) => {
     checkOwner(session, student.id);
     const transcript = messages.map((m) => `[${m.created_at}] ${m.speaker}/${m.channel}: ${m.content}`).join('\n');
     const reportLanguage = normalizedLanguage(req.body.reportLanguage || req.body.expertLanguage);
-    const system = `너는 전문가 퍼소나 인터뷰의 회의록 요약자다. 교육용 제출물로 쓸 수 있게 사실, 추정, 가치 판단, 이해관계, 합의, 불일치, 검증 필요 주장, 다음 질문을 분리한다. 퍼소나가 실제 전문가라는 식으로 과장하지 않는다. ${languageInstruction(reportLanguage)}`;
+    const system = `너는 전문가 퍼소나 인터뷰의 제출용 요약본 작성자다. 단순 압축 요약이 아니라 학생이 제출물의 초안으로 쓸 수 있는 구조화된 요약본을 작성한다. 퍼소나가 실제 인간 전문가이거나 실제 조사 결과라는 식으로 과장하지 않는다. 사실, 추정, 가치 판단, 검증 필요 주장을 분리한다. 아래 10개 항목을 반드시 같은 순서의 Markdown 제목으로 포함한다.
+
+${summarySectionsPrompt()}
+
+각 항목은 비어 있으면 "해당 없음" 또는 "추가 검증 필요"라고 적는다. 학생 성찰 질문은 학생이 자신의 판단 근거를 돌아보도록 2~4개 질문으로 작성한다. ${languageInstruction(reportLanguage)}`;
     const user = `회의 제목: ${session.title}
 회의 종류: ${meetingTypeDetails(session.meeting_type).label}
 주제: ${session.topic}
@@ -1297,7 +1319,7 @@ ${transcript}`;
       credits_charged: actualCost.credits,
       created_at: nowIso()
     });
-    res.json({ summary: msg, usage: { inputTokens: ai.inputTokens, outputTokens: ai.outputTokens, credits: actualCost.credits, usd: actualCost.usd, krw: actualCost.krw, dryRun: ai.dryRun }, centralUsage: centralUsage?.budget || centralUsage?.usageLimit || null, student: chargedStudent, remainingCredits: chargedStudent.credit_limit - chargedStudent.credits_used });
+    res.json({ summary: msg, rollingSummary: ai.text, usage: { inputTokens: ai.inputTokens, outputTokens: ai.outputTokens, credits: actualCost.credits, usd: actualCost.usd, krw: actualCost.krw, dryRun: ai.dryRun }, centralUsage: centralUsage?.budget || centralUsage?.usageLimit || null, student: chargedStudent, remainingCredits: chargedStudent.credit_limit - chargedStudent.credits_used });
   } catch (e) { next(e); }
 });
 
