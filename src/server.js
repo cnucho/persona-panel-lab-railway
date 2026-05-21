@@ -44,7 +44,7 @@ const cfg = {
 };
 
 // Estimated USD per 1M tokens. Override with env if your model pricing differs.
-const MODEL_PRICES = {
+const MODEL_PRICING_USD_PER_1M_TOKENS = {
   'gpt-4.1': { input: 2.0, output: 8.0 },
   'gpt-4.1-mini': { input: 0.4, output: 1.6 },
   'gpt-4.1-nano': { input: 0.1, output: 0.4 },
@@ -379,10 +379,6 @@ function roughTokens(text) {
   return Math.max(1, Math.ceil(koreanChars / 1.3 + nonKoreanChars / 4));
 }
 
-function priceFor(model) {
-  return MODEL_PRICES[model] || MODEL_PRICES[cfg.defaultModel] || MODEL_PRICES['gpt-4.1-mini'];
-}
-
 function modelForDepth(depthKey) {
   const preset = DEPTH_PRESETS[depthKey] || DEPTH_PRESETS.balanced;
   if (preset.modelRole === 'premium') return cfg.premiumModel;
@@ -393,12 +389,26 @@ function languageInstruction(languageKey) {
   return (LANGUAGE_OPTIONS[languageKey] || LANGUAGE_OPTIONS.ko).instruction;
 }
 
+function calculateCostUsd({ model, inputTokens, outputTokens }) {
+  const pricing = MODEL_PRICING_USD_PER_1M_TOKENS[model];
+  if (!pricing) {
+    throw apiError(500, `Unknown model pricing: ${model}`);
+  }
+
+  const inputCostUsd = (Number(inputTokens || 0) / 1_000_000) * pricing.input;
+  const outputCostUsd = (Number(outputTokens || 0) / 1_000_000) * pricing.output;
+  return inputCostUsd + outputCostUsd;
+}
+
+function convertCostUsdToCredits(costUsd) {
+  return Math.ceil(Number(costUsd || 0) * cfg.costUsdToCredits);
+}
+
 function costToCredits({ model, inputTokens, outputTokens }) {
-  const p = priceFor(model);
-  const usd = (inputTokens / 1_000_000) * p.input + (outputTokens / 1_000_000) * p.output;
-  const credits = Math.max(1, Math.ceil(usd * cfg.costUsdToCredits));
+  const costUsd = calculateCostUsd({ model, inputTokens, outputTokens });
+  const credits = Math.max(1, convertCostUsdToCredits(costUsd));
   const purchaseKrw = credits * cfg.purchaseKrwPerCredit;
-  return { usd, costUsd: usd, credits, purchaseKrw, krw: purchaseKrw };
+  return { usd: costUsd, costUsd, credits, purchaseKrw, krw: purchaseKrw };
 }
 
 function apiError(status, message) {

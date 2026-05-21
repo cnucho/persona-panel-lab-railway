@@ -30,4 +30,4 @@ credits_to_deduct = ceil(cost_usd * 14000)
 
 ## 모델 단가
 
-모델별 USD 단가는 [src/server.js](../src/server.js)의 `MODEL_PRICES`에서 관리합니다. OpenAI 가격이 바뀌면 이 표만 최신 가격에 맞게 조정합니다.
+모델별 USD 단가는 [src/server.js](../src/server.js)의 `MODEL_PRICING_USD_PER_1M_TOKENS`에서 관리합니다. OpenAI 가격이 바뀌면 이 표만 최신 가격에 맞게 조정합니다.
