@@ -631,6 +631,14 @@ function recentContext(messages, maxMessages) {
   return messages.slice(-maxMessages).map((m) => `[${m.speaker}/${m.channel}] ${m.content}`).join('\n');
 }
 
+function sharedContextMessages(messages) {
+  return messages.filter((m) => m.channel === '공동 대화장' && !m.persona_id);
+}
+
+function personaContextMessages(messages, personaId) {
+  return messages.filter((m) => m.persona_id === personaId);
+}
+
 function buildSystemPrompt(session, personas, mode, targetPersona, depthKey, expertLanguage) {
   const mt = meetingTypeDetails(session.meeting_type);
   const preset = DEPTH_PRESETS[depthKey] || DEPTH_PRESETS.balanced;
@@ -669,9 +677,46 @@ ${personaRulesPrompt()}
 7. 지정된 전문가 응답 언어를 유지한다. 사용자가 다른 언어로 질문해도 전문가 발언은 지정 언어로 답한다.
 
 출력 방식:
+- 공동 대화장에서는 모든 퍼소나가 같은 질문을 들은 것으로 처리한다.
 - 공동 대화장에서는 각 발언 앞에 [퍼소나 이름]을 붙인다.
 - 개별 대화창에서는 해당 퍼소나의 1인칭 응답으로 말한다.
 - 마지막에는 가능하면 [진행자 정리]를 붙여 쟁점, 합의, 불일치, 다음 질문, 검증 필요를 짧게 정리한다.`;
+}
+
+function buildUserContext({ session, messages, mode, targetPersona, content, maxContextMessages }) {
+  if (mode === 'shared') {
+    return [
+      `rolling summary:\n${session.rolling_summary || '(아직 없음)'}`,
+      `최근 공동 회의록 일부:\n${recentContext(sharedContextMessages(messages), maxContextMessages) || '(아직 없음)'}`,
+      `학생의 새 질문:\n${content}`,
+      `공동 대화장 응답 형식:
+각 퍼소나는 같은 질문을 들은 것으로 처리하고, 반드시 대괄호 이름으로 발언한다.
+
+예:
+[분류 감사자]
+...
+
+[데이터 검증자]
+...
+
+[혁신 질문자]
+...
+
+마지막에는 가능하면 다음 항목을 포함한다.
+
+검증 필요:
+- ...
+
+회의록 기록용 한 문장:
+- ...`
+    ].join('\n\n');
+  }
+
+  return [
+    `rolling summary:\n${session.rolling_summary || '(아직 없음)'}`,
+    `최근 퍼소나별 대화창 기록:\n${recentContext(personaContextMessages(messages, targetPersona?.id), maxContextMessages) || '(아직 없음)'}`,
+    `학생의 새 질문:\n${content}`
+  ].join('\n\n');
 }
 
 async function callAi({ model, system, user, maxOutputTokens }) {
@@ -1149,11 +1194,14 @@ app.post('/api/sessions/:id/message', async (req, res, next) => {
 
     const model = modelForDepth(depthKey);
     const system = buildSystemPrompt(session, personas, mode, targetPersona, depthKey, expertLanguage);
-    const context = [
-      `이전 요약:\n${session.rolling_summary || '(아직 없음)'}`,
-      `최근 회의록:\n${recentContext(messages, preset.maxContextMessages) || '(아직 없음)'}`,
-      `사용자 입력:\n${content}`
-    ].join('\n\n');
+    const context = buildUserContext({
+      session,
+      messages,
+      mode,
+      targetPersona,
+      content,
+      maxContextMessages: preset.maxContextMessages
+    });
     const estimatedCost = costToCredits({
       model,
       inputTokens: roughTokens(system + context),
