@@ -39,6 +39,8 @@ const cfg = {
   appUsageTier: process.env.APP_USAGE_TIER || process.env.APP_USAGE_CLASS || 'standard',
   appAllowedEmails: process.env.APP_ALLOWED_EMAILS || process.env.APP_PRIVATE_ALLOWED_EMAILS || '',
   adminEmails: new Set(String(process.env.ADMIN_EMAILS || 'skcho99@gmail.com').split(/[,;\s]+/).map((s) => String(s || '').trim().toLowerCase()).filter(Boolean)),
+  loginAllowedDomains: new Set(String(process.env.LOGIN_ALLOWED_DOMAINS || 'dgist.ac.kr').split(/[,;\s]+/).map((s) => String(s || '').trim().toLowerCase().replace(/^@/, '')).filter(Boolean)),
+  loginAllowedEmailKeywords: String(process.env.LOGIN_ALLOWED_EMAIL_KEYWORDS || 'dgist').split(/[,;\s]+/).map((s) => String(s || '').trim().toLowerCase()).filter(Boolean),
   appCreditPolicies: process.env.APP_CREDIT_POLICIES || process.env.APP_CREDIT_POLICY || 'consumerinsight.kr=0,*=10',
   appCreditMarkup: Number(process.env.APP_CREDIT_MARKUP || 10),
   starterActualCostKrw: Number(process.env.STARTER_ACTUAL_COST_KRW || 3000)
@@ -255,6 +257,18 @@ function normalizeEmail(value = '') {
 
 function validEmail(value = '') {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizeEmail(value));
+}
+
+function isAllowedLoginEmail(email = '') {
+  const normalized = normalizeEmail(email);
+  const domain = normalized.split('@')[1] || '';
+  return cfg.adminEmails.has(normalized) ||
+    cfg.loginAllowedDomains.has(domain) ||
+    cfg.loginAllowedEmailKeywords.some((keyword) => normalized.includes(keyword));
+}
+
+function assertAllowedLoginEmail(email = '') {
+  if (!isAllowedLoginEmail(email)) throw apiError(403, 'login_email_not_allowed');
 }
 
 function parseCookies(req) {
@@ -1140,6 +1154,7 @@ app.post('/api/auth/login', async (req, res, next) => {
     const email = normalizeEmail(req.body.email || req.body.proLoginEmail);
     const password = String(req.body.password || req.body.proLoginPassword || '');
     if (!validEmail(email)) throw apiError(400, 'valid_email_required');
+    assertAllowedLoginEmail(email);
     const data = await centralRequest('/api/auth/login', centralAppPayload({
       email,
       password,
@@ -1176,6 +1191,7 @@ app.get('/api/auth/session', async (req, res, next) => {
       return;
     }
     const data = await centralSessionForRequest(req, {});
+    assertAllowedLoginEmail(data.session.email);
     const wallet = await centralWalletForSession(data.sessionId).catch(() => null);
     res.json({ ok: true, authenticated: true, sessionId: data.sessionId, session: data.session, budget: data.budget, wallet });
   } catch (e) {
@@ -1187,9 +1203,12 @@ app.get('/api/auth/session', async (req, res, next) => {
 app.post('/api/auth/email/start', async (req, res, next) => {
   try {
     if (!centralAuthEnabled()) throw apiError(503, 'central_auth_not_configured');
+    const email = normalizeEmail(req.body.email || req.body.proLoginEmail);
+    if (!validEmail(email)) throw apiError(400, 'valid_email_required');
+    assertAllowedLoginEmail(email);
     const data = await centralRequest('/api/auth/email/start', centralAppPayload({
       ...req.body,
-      email: req.body.email || req.body.proLoginEmail
+      email
     }));
     res.json(data);
   } catch (e) { next(e); }
@@ -1198,9 +1217,12 @@ app.post('/api/auth/email/start', async (req, res, next) => {
 app.post('/api/auth/email/verify', async (req, res, next) => {
   try {
     if (!centralAuthEnabled()) throw apiError(503, 'central_auth_not_configured');
+    const email = normalizeEmail(req.body.email || req.body.proLoginEmail);
+    if (!validEmail(email)) throw apiError(400, 'valid_email_required');
+    assertAllowedLoginEmail(email);
     const data = await centralRequest('/api/auth/email/verify', centralAppPayload({
       ...req.body,
-      email: req.body.email || req.body.proLoginEmail
+      email
     }));
     res.json(data);
   } catch (e) { next(e); }
@@ -1303,6 +1325,7 @@ app.post('/api/students', async (req, res, next) => {
     const accessCode = String(req.body.accessCode || '').trim();
     if (centralAuthEnabled()) {
       const auth = await centralSessionForRequest(req, req.body);
+      assertAllowedLoginEmail(auth.session.email);
       const wallet = await centralWalletForSession(auth.sessionId).catch(() => null);
       const centralStudent = studentFromCentralSession({
         sessionId: auth.sessionId,

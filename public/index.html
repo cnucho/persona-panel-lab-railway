@@ -220,6 +220,7 @@
             </div>
             <label for="loginEmail">Email</label>
             <input id="loginEmail" type="email" autocomplete="email" placeholder="name@example.com" />
+            <div class="hint" data-i18n="loginEmailHint">이메일 주소에 dgist가 포함된 계정만 로그인할 수 있습니다. 관리자는 skcho99@gmail.com만 예외입니다.</div>
             <label for="loginPassword">Password</label>
             <input id="loginPassword" type="password" autocomplete="current-password" placeholder="8+ characters" />
             <label for="displayName" data-i18n="displayName">이름 또는 별칭</label>
@@ -375,6 +376,7 @@ const SYSTEM = {
     interfaceLanguage: "시스템 언어",
     expertLanguage: "전문가 응답 언어",
     reportLanguage: "보고서 언어",
+    loginEmailHint: "이메일 주소에 dgist가 포함된 계정만 로그인할 수 있습니다. 관리자는 skcho99@gmail.com만 예외입니다.",
     adminOverview: "관리자 현황",
     adminHint: "관리자는 학생 이메일, 이름, 크레딧, 회의 목록만 볼 수 있습니다. 비밀번호는 저장하거나 표시하지 않습니다.",
     adminSecret: "관리자 비밀키",
@@ -500,6 +502,7 @@ const SYSTEM = {
     interfaceLanguage: "System Language",
     expertLanguage: "Expert Response Language",
     reportLanguage: "Report Language",
+    loginEmailHint: "Only email addresses containing dgist can log in. The only admin exception is skcho99@gmail.com.",
     adminOverview: "Admin Overview",
     adminHint: "Admins can view only student email, name, credits, and session lists. Passwords are never stored or displayed.",
     adminSecret: "Admin Secret",
