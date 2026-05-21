@@ -29,6 +29,7 @@ const cfg = {
   classroomSecret: process.env.CLASSROOM_SHARED_SECRET || 'persona-panel-lab-secret',
   databaseUrl: process.env.DATABASE_URL || '',
   openaiKey: process.env.OPENAI_API_KEY || '',
+  useCentralAuth: String(process.env.USE_CENTRAL_AUTH || 'false') === 'true',
   centralAuthUrl: String(process.env.CENTRAL_AUTH_URL || '').trim().replace(/\/+$/, ''),
   centralAuthSecret: process.env.CENTRAL_AUTH_SECRET || process.env.AUTH_SERVICE_SECRET || '',
   sharedSessionCookie: process.env.SHARED_SESSION_COOKIE || 'shared_ai_session',
@@ -303,7 +304,7 @@ function expiredSessionCookieHeader() {
 }
 
 function centralAuthEnabled() {
-  return Boolean(cfg.centralAuthUrl);
+  return cfg.useCentralAuth && Boolean(cfg.centralAuthUrl);
 }
 
 function centralUsagePolicy() {
@@ -1321,7 +1322,8 @@ app.get('/api/admin/overview', async (req, res, next) => {
 
 app.post('/api/students', async (req, res, next) => {
   try {
-    const displayName = String(req.body.displayName || '').trim().slice(0, 80);
+    const email = normalizeEmail(req.body.email || req.body.proLoginEmail);
+    const displayNameInput = String(req.body.displayName || '').trim().slice(0, 80);
     const accessCode = String(req.body.accessCode || '').trim();
     if (centralAuthEnabled()) {
       const auth = await centralSessionForRequest(req, req.body);
@@ -1345,15 +1347,16 @@ app.post('/api/students', async (req, res, next) => {
       });
       return;
     }
-    if (!displayName) throw apiError(400, '이름 또는 별칭을 입력하세요.');
+    if (!validEmail(email)) throw apiError(400, 'valid_email_required');
+    assertAllowedLoginEmail(email);
+    const displayName = displayNameInput || email.split('@')[0];
     if (cfg.requireAccessCode && !cfg.accessCodes.has(accessCode)) throw apiError(403, '유효하지 않은 수업 코드입니다.');
-    const clientId = String(req.body.clientId || '').trim().replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 80);
-    const studentSeed = clientId || `${displayName}:${req.ip}`;
-    const seed = cfg.requireAccessCode ? `${accessCode}:${displayName}:${studentSeed}` : `${displayName}:${studentSeed}`;
+    const seed = cfg.requireAccessCode ? `${accessCode}:${email}` : email;
     const student = await store.upsertStudent({
       id: `stu_${hash(cfg.classroomSecret + ':' + seed)}`,
       display_name: displayName,
       access_code: accessCode || null,
+      email,
       credit_limit: cfg.creditBudget,
       credits_used: 0,
       created_at: nowIso(),

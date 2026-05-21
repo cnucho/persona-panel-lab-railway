@@ -221,8 +221,10 @@
             <label for="loginEmail">Email</label>
             <input id="loginEmail" type="email" autocomplete="email" placeholder="name@example.com" />
             <div class="hint" data-i18n="loginEmailHint">이메일 주소에 dgist가 포함된 계정만 로그인할 수 있습니다. 관리자는 skcho99@gmail.com만 예외입니다.</div>
-            <label for="loginPassword">Password</label>
-            <input id="loginPassword" type="password" autocomplete="current-password" placeholder="8+ characters" />
+            <div id="passwordLoginBlock">
+              <label for="loginPassword">Password</label>
+              <input id="loginPassword" type="password" autocomplete="current-password" placeholder="8+ characters" />
+            </div>
             <label for="displayName" data-i18n="displayName">이름 또는 별칭</label>
             <input id="displayName" />
             <label for="accessCode"><span data-i18n="accessCode">수업 코드</span> <span class="hint" data-i18n="ifNeeded">필요한 경우</span></label>
@@ -1077,6 +1079,7 @@ async function init() {
   renderExpertLanguages();
   renderReportLanguages();
   applySystemLanguage({ forceDefaults: true, applyTemplateValues: false });
+  $("passwordLoginBlock").style.display = config?.centralAuthConfigured ? "" : "none";
   $("entryDetails").open = !student;
   if (session) await loadSession();
   if (!config.hasOpenAiKey) setStatus(t("mockNotice"), "warn");
@@ -1145,7 +1148,7 @@ $("enterBtn").onclick = async () => {
     }
     const data = await api("/api/students", {
       method: "POST",
-      body: { displayName: $("displayName").value, accessCode: $("accessCode").value, clientId, sessionId: authSessionId, sharedSessionId: authSessionId }
+      body: { email: $("loginEmail").value.trim(), displayName: $("displayName").value, accessCode: $("accessCode").value, clientId, sessionId: authSessionId, sharedSessionId: authSessionId }
     });
     student = data.student;
     if (data.session) authSession = data.session;
