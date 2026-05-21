@@ -154,6 +154,20 @@
       line-height: 1.55;
     }
     .guide strong { color: var(--text); }
+    .entry-details {
+      margin-top: 10px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fbfdff;
+      padding: 10px;
+    }
+    .entry-details summary {
+      cursor: pointer;
+      font-weight: 700;
+      color: var(--text);
+    }
+    .entry-details-body { margin-top: 10px; }
+    .entry-compact { margin-top: 8px; }
     @media (max-width: 940px) {
       header { grid-template-columns: 1fr; }
       main { grid-template-columns: 1fr; }
@@ -178,34 +192,39 @@
     <aside>
       <section>
         <h2 data-i18n="sectionEntry">1. 입장과 예산</h2>
-        <div class="grid2">
-          <div>
-            <label for="interfaceLanguage" data-i18n="interfaceLanguage">시스템 언어</label>
-            <select id="interfaceLanguage">
-              <option value="ko">한국어</option>
-              <option value="en">English</option>
-            </select>
-          </div>
-          <div>
-            <label for="expertLanguage" data-i18n="expertLanguage">전문가 응답 언어</label>
-            <select id="expertLanguage"></select>
-          </div>
-          <div>
-            <label for="reportLanguage" data-i18n="reportLanguage">보고서 언어</label>
-            <select id="reportLanguage"></select>
-          </div>
+        <div class="entry-compact">
+          <label for="expertLanguage" data-i18n="expertLanguage">전문가 응답 언어</label>
+          <select id="expertLanguage"></select>
         </div>
-        <label for="loginEmail">Email</label>
-        <input id="loginEmail" type="email" autocomplete="email" placeholder="name@example.com" />
-        <label for="loginPassword">Password</label>
-        <input id="loginPassword" type="password" autocomplete="current-password" placeholder="8+ characters" />
-        <label for="displayName" data-i18n="displayName">이름 또는 별칭</label>
-        <input id="displayName" />
-        <label for="accessCode"><span data-i18n="accessCode">수업 코드</span> <span class="hint" data-i18n="ifNeeded">필요한 경우</span></label>
-        <input id="accessCode" placeholder="teacher code" />
-        <button class="primary" id="enterBtn" data-i18n="enter">입장</button>
         <div class="status" id="creditBox" data-i18n="creditHint">입장하면 크레딧이 표시됩니다.</div>
         <div class="bar"><div id="creditProgress"></div></div>
+        <details class="entry-details" id="entryDetails" open>
+          <summary data-i18n="entryDetails">입장 정보</summary>
+          <div class="entry-details-body">
+            <div class="grid2">
+              <div>
+                <label for="interfaceLanguage" data-i18n="interfaceLanguage">시스템 언어</label>
+                <select id="interfaceLanguage">
+                  <option value="ko">한국어</option>
+                  <option value="en">English</option>
+                </select>
+              </div>
+              <div>
+                <label for="reportLanguage" data-i18n="reportLanguage">보고서 언어</label>
+                <select id="reportLanguage"></select>
+              </div>
+            </div>
+            <label for="loginEmail">Email</label>
+            <input id="loginEmail" type="email" autocomplete="email" placeholder="name@example.com" />
+            <label for="loginPassword">Password</label>
+            <input id="loginPassword" type="password" autocomplete="current-password" placeholder="8+ characters" />
+            <label for="displayName" data-i18n="displayName">이름 또는 별칭</label>
+            <input id="displayName" />
+            <label for="accessCode"><span data-i18n="accessCode">수업 코드</span> <span class="hint" data-i18n="ifNeeded">필요한 경우</span></label>
+            <input id="accessCode" placeholder="teacher code" />
+            <button class="primary" id="enterBtn" data-i18n="enter">입장</button>
+          </div>
+        </details>
       </section>
 
       <section>
@@ -335,6 +354,7 @@ const SYSTEM = {
     appSubtitle: "전문 영역의 지식, 가치관, 이해관계, 판단 규칙을 가진 가상 전문가를 만들고 인터뷰합니다.",
     loadingConfig: "설정 불러오는 중",
     sectionEntry: "1. 입장과 예산",
+    entryDetails: "입장 정보",
     interfaceLanguage: "시스템 언어",
     expertLanguage: "전문가 응답 언어",
     reportLanguage: "보고서 언어",
@@ -449,6 +469,7 @@ const SYSTEM = {
     appSubtitle: "Create and interview virtual experts with domain knowledge, values, interests, and judgment rules.",
     loadingConfig: "Loading configuration",
     sectionEntry: "1. Entry and Budget",
+    entryDetails: "Entry Details",
     interfaceLanguage: "System Language",
     expertLanguage: "Expert Response Language",
     reportLanguage: "Report Language",
@@ -992,6 +1013,7 @@ async function init() {
   renderExpertLanguages();
   renderReportLanguages();
   applySystemLanguage({ forceDefaults: true, applyTemplateValues: false });
+  $("entryDetails").open = !student;
   if (session) await loadSession();
   if (!config.hasOpenAiKey) setStatus(t("mockNotice"), "warn");
 }
@@ -1049,6 +1071,7 @@ $("enterBtn").onclick = async () => {
     if (data.session) authSession = data.session;
     saveState();
     renderCredit(data.remainingCredits);
+    $("entryDetails").open = false;
     setStatus(t("entered"), "good");
   } catch (e) {
     setStatus(e.message, "danger");
