@@ -12,6 +12,7 @@ import JSZip from 'jszip';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const CREDITS_PER_USD_COST = 14000;
+const PURCHASE_WON_PER_CREDIT = 1;
 
 const cfg = {
   port: Number(process.env.PORT || 3000),
@@ -21,7 +22,7 @@ const cfg = {
   premiumModel: process.env.PREMIUM_MODEL || process.env.DEFAULT_MODEL || 'gpt-5.4-mini',
   creditBudget: Number(process.env.CREDIT_BUDGET_PER_USER || 30000),
   costUsdToCredits: CREDITS_PER_USD_COST,
-  purchaseKrwPerCredit: Number(process.env.CREDIT_PURCHASE_KRW_PER_CREDIT || 1),
+  purchaseKrwPerCredit: PURCHASE_WON_PER_CREDIT,
   maxPersonas: Number(process.env.MAX_PERSONAS || 5),
   maxRounds: Number(process.env.MAX_ROUNDS_PER_SESSION || 8),
   maxMessages: Number(process.env.MAX_MESSAGES_PER_SESSION || 100),
