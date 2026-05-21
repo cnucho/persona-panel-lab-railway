@@ -38,6 +38,7 @@ const cfg = {
   appUrl: process.env.APP_URL || process.env.APP_PUBLIC_URL || '',
   appVisibility: process.env.APP_VISIBILITY || 'public',
   appUsageTier: process.env.APP_USAGE_TIER || process.env.APP_USAGE_CLASS || 'standard',
+  appAllowedEmails: process.env.APP_ALLOWED_EMAILS || process.env.APP_PRIVATE_ALLOWED_EMAILS || '',
   appCreditPolicies: process.env.APP_CREDIT_POLICIES || process.env.APP_CREDIT_POLICY || 'consumerinsight.kr=0,*=10',
   appCreditMarkup: Number(process.env.APP_CREDIT_MARKUP || 10),
   starterActualCostKrw: Number(process.env.STARTER_ACTUAL_COST_KRW || 3000)
@@ -209,6 +210,7 @@ function centralAppPayload(extra = {}) {
     appUrl: cfg.appUrl,
     visibility: cfg.appVisibility,
     usageTier: cfg.appUsageTier,
+    allowedEmails: cfg.appAllowedEmails,
     usagePolicy: centralUsagePolicy(),
     appCreditPolicies: cfg.appCreditPolicies,
     ...extra
@@ -895,6 +897,7 @@ app.get('/api/config', (req, res) => {
     appCreditPolicies: cfg.appCreditPolicies,
     appVisibility: cfg.appVisibility,
     appUsageTier: cfg.appUsageTier,
+    appAllowedEmailCount: cfg.appAllowedEmails.split(/[,;\s]+/).map((item) => item.trim()).filter(Boolean).length,
     appCreditMarkup: cfg.appCreditMarkup,
     starterActualCostKrw: cfg.starterActualCostKrw,
     appUrl: cfg.appUrl,
