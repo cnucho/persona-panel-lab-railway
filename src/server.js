@@ -37,6 +37,7 @@ const cfg = {
   appName: process.env.APP_NAME || 'Persona Panel Lab',
   appUrl: process.env.APP_URL || process.env.APP_PUBLIC_URL || '',
   appVisibility: process.env.APP_VISIBILITY || 'public',
+  appUsageTier: process.env.APP_USAGE_TIER || process.env.APP_USAGE_CLASS || 'standard',
   appCreditPolicies: process.env.APP_CREDIT_POLICIES || process.env.APP_CREDIT_POLICY || 'consumerinsight.kr=0,*=10',
   appCreditMarkup: Number(process.env.APP_CREDIT_MARKUP || 10),
   starterActualCostKrw: Number(process.env.STARTER_ACTUAL_COST_KRW || 3000)
@@ -207,6 +208,7 @@ function centralAppPayload(extra = {}) {
     appName: cfg.appName,
     appUrl: cfg.appUrl,
     visibility: cfg.appVisibility,
+    usageTier: cfg.appUsageTier,
     usagePolicy: centralUsagePolicy(),
     appCreditPolicies: cfg.appCreditPolicies,
     ...extra
@@ -892,6 +894,9 @@ app.get('/api/config', (req, res) => {
     sharedSessionCookie: cfg.sharedSessionCookie,
     appCreditPolicies: cfg.appCreditPolicies,
     appVisibility: cfg.appVisibility,
+    appUsageTier: cfg.appUsageTier,
+    appCreditMarkup: cfg.appCreditMarkup,
+    starterActualCostKrw: cfg.starterActualCostKrw,
     appUrl: cfg.appUrl,
     hasOpenAiKey: Boolean(cfg.openaiKey),
     meetingTypes: Object.fromEntries(Object.entries(MEETING_TYPES).map(([k, v]) => [k, v.label])),
