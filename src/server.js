@@ -18,7 +18,7 @@ const cfg = {
   editorModel: process.env.EDITOR_MODEL || process.env.SUMMARY_MODEL || 'gpt-5.4-nano',
   premiumModel: process.env.PREMIUM_MODEL || process.env.DEFAULT_MODEL || 'gpt-5.4-mini',
   creditBudget: Number(process.env.CREDIT_BUDGET_PER_USER || 30000),
-  costUsdToCredits: Number(process.env.CREDITS_PER_USD_COST || 14000),
+  creditsPerUsdCost: Number(process.env.CREDITS_PER_USD_COST || 14000),
   purchaseKrwPerCredit: Number(process.env.PURCHASE_KRW_PER_CREDIT || 1),
   maxPersonas: Number(process.env.MAX_PERSONAS || 5),
   maxRounds: Number(process.env.MAX_ROUNDS_PER_SESSION || 8),
@@ -401,7 +401,16 @@ function calculateCostUsd({ model, inputTokens, outputTokens }) {
 }
 
 function convertCostUsdToCredits(costUsd) {
-  return Math.ceil(Number(costUsd || 0) * cfg.costUsdToCredits);
+  return Math.ceil(Number(costUsd || 0) * cfg.creditsPerUsdCost);
+}
+
+function estimateMaxCreditsForCall({ model, estimatedInputTokens, maxOutputTokens }) {
+  const estimatedCostUsd = calculateCostUsd({
+    model,
+    inputTokens: estimatedInputTokens,
+    outputTokens: maxOutputTokens
+  });
+  return convertCostUsdToCredits(estimatedCostUsd);
 }
 
 function costToCredits({ model, inputTokens, outputTokens }) {
@@ -417,9 +426,9 @@ function apiError(status, message) {
 
 function ensureCreditAvailable(student, estimatedCredits) {
   const remaining = student.credit_limit - student.credits_used;
-  if (remaining <= 0) throw apiError(402, '사용 가능한 크레딧을 모두 사용했습니다.');
+  if (remaining <= 0) throw apiError(402, '남은 크레딧이 없습니다.');
   if (estimatedCredits > remaining) {
-    throw apiError(402, `남은 크레딧이 부족합니다. 남은 크레딧: ${remaining}, 예상 필요: ${estimatedCredits}`);
+    throw apiError(402, '남은 크레딧이 부족합니다. 요약본을 생성해 맥락을 줄이거나 더 짧게 질문하세요.');
   }
 }
 
@@ -470,7 +479,7 @@ function usagePayload(ai, cost, extra = {}) {
     input_tokens: ai.inputTokens,
     output_tokens: ai.outputTokens,
     cost_usd: cost.costUsd,
-    credits_per_usd_cost: cfg.costUsdToCredits,
+    credits_per_usd_cost: cfg.creditsPerUsdCost,
     credits_deducted: cost.creditsToDeduct,
     purchase_krw_per_credit: cfg.purchaseKrwPerCredit,
     inputTokens: ai.inputTokens,
@@ -1124,11 +1133,25 @@ app.post('/api/credits/balance', async (req, res, next) => {
 });
 
 app.get('/api/health', (req, res) => {
-  res.json({ ok: true, time: nowIso(), hasOpenAiKey: Boolean(cfg.openaiKey), defaultModel: cfg.defaultModel, centralAuthConfigured: centralAuthEnabled() });
+  res.json({
+    ok: true,
+    service: 'persona-panel-lab',
+    hasOpenAiKey: Boolean(cfg.openaiKey),
+    store: cfg.databaseUrl ? 'postgres' : 'memory',
+    creditBudget: cfg.creditBudget,
+    creditsPerUsdCost: cfg.creditsPerUsdCost
+  });
 });
 
 app.get('/health', (req, res) => {
-  res.json({ ok: true, time: nowIso(), hasOpenAiKey: Boolean(cfg.openaiKey), defaultModel: cfg.defaultModel, centralAuthConfigured: centralAuthEnabled() });
+  res.json({
+    ok: true,
+    service: 'persona-panel-lab',
+    hasOpenAiKey: Boolean(cfg.openaiKey),
+    store: cfg.databaseUrl ? 'postgres' : 'memory',
+    creditBudget: cfg.creditBudget,
+    creditsPerUsdCost: cfg.creditsPerUsdCost
+  });
 });
 
 app.get('/api/config', (req, res) => {
@@ -1140,13 +1163,8 @@ app.get('/api/config', (req, res) => {
     editorModel: cfg.editorModel,
     premiumModel: cfg.premiumModel,
     creditBudget: cfg.creditBudget,
-    costCurrency: 'USD',
-    costUsdToCredits: cfg.costUsdToCredits,
-    creditsPerUsdCost: cfg.costUsdToCredits,
-    creditDeductionFormula: `ceil(cost_usd * ${cfg.costUsdToCredits})`,
+    creditsPerUsdCost: cfg.creditsPerUsdCost,
     purchaseKrwPerCredit: cfg.purchaseKrwPerCredit,
-    defaultCreditPurchaseValueKrw: cfg.creditBudget * cfg.purchaseKrwPerCredit,
-    defaultIncludedCostUsd: cfg.creditBudget / cfg.costUsdToCredits,
     requireAccessCode: cfg.requireAccessCode,
     centralAuthConfigured: centralAuthEnabled(),
     sharedSessionCookie: cfg.sharedSessionCookie,
@@ -1158,6 +1176,9 @@ app.get('/api/config', (req, res) => {
     starterActualCostKrw: cfg.starterActualCostKrw,
     appUrl: cfg.appUrl,
     hasOpenAiKey: Boolean(cfg.openaiKey),
+    maxPersonas: cfg.maxPersonas,
+    maxRounds: cfg.maxRounds,
+    maxMessages: cfg.maxMessages,
     meetingTypes: Object.fromEntries(Object.entries(MEETING_TYPE_DETAILS).map(([k, v]) => [k, v.label])),
     meetingTypeDetails: MEETING_TYPE_DETAILS,
     personaPromptRules: PERSONA_PROMPT_RULES,
@@ -1317,13 +1338,14 @@ app.post('/api/sessions/:id/message', async (req, res, next) => {
       content,
       maxContextMessages: preset.maxContextMessages
     });
-    const estimatedCost = costToCredits({
+    const estimatedInputTokens = roughTokens(system + context);
+    const estimatedCredits = estimateMaxCreditsForCall({
       model,
-      inputTokens: roughTokens(system + context),
-      outputTokens: preset.maxOutputTokens
+      estimatedInputTokens,
+      maxOutputTokens: preset.maxOutputTokens
     });
     await ensureCentralUsageAvailable(student);
-    ensureCreditAvailable(student, estimatedCost.credits);
+    ensureCreditAvailable(student, estimatedCredits);
 
     const ai = await callAi({ model, system, user: context, maxOutputTokens: preset.maxOutputTokens });
     const actualCost = ai.dryRun ? { usd: 0, costUsd: 0, credits: 0, creditsToDeduct: 0, purchaseKrw: 0, krw: 0 } : costToCredits({ model: ai.model, inputTokens: ai.inputTokens, outputTokens: ai.outputTokens });
@@ -1377,10 +1399,11 @@ ${personas.map((p) => `- ${p.name}: ${p.role}`).join('\n')}
 
 회의록:
 ${transcript}`;
-    const estimatedCost = costToCredits({ model: cfg.summaryModel, inputTokens: roughTokens(system + user), outputTokens: Math.min(900, cfg.maxOutputTokens) });
+    const maxSummaryOutputTokens = Math.min(900, cfg.maxOutputTokens);
+    const estimatedCredits = estimateMaxCreditsForCall({ model: cfg.summaryModel, estimatedInputTokens: roughTokens(system + user), maxOutputTokens: maxSummaryOutputTokens });
     await ensureCentralUsageAvailable(student);
-    ensureCreditAvailable(student, estimatedCost.credits);
-    const ai = await callAi({ model: cfg.summaryModel, system, user, maxOutputTokens: Math.min(900, cfg.maxOutputTokens) });
+    ensureCreditAvailable(student, estimatedCredits);
+    const ai = await callAi({ model: cfg.summaryModel, system, user, maxOutputTokens: maxSummaryOutputTokens });
     const actualCost = ai.dryRun ? { usd: 0, costUsd: 0, credits: 0, creditsToDeduct: 0, purchaseKrw: 0, krw: 0 } : costToCredits({ model: ai.model, inputTokens: ai.inputTokens, outputTokens: ai.outputTokens });
     const centralUsage = ai.dryRun ? null : await recordCentralUsage(student, { model: ai.model, inputTokens: ai.inputTokens, outputTokens: ai.outputTokens, task: 'persona_summary' });
     applyCreditsToCost(actualCost, chargedCreditsFromCentralUsage(centralUsage, actualCost.creditsToDeduct));
@@ -1428,9 +1451,9 @@ ${instruction || '(특별 지시 없음. 제출용 보고서 초안으로 정리
 원문:
 ${source}`;
     const maxOutputTokens = Math.min(1200, Math.max(cfg.maxOutputTokens, 900));
-    const estimatedCost = costToCredits({ model: cfg.editorModel, inputTokens: roughTokens(system + user), outputTokens: maxOutputTokens });
+    const estimatedCredits = estimateMaxCreditsForCall({ model: cfg.editorModel, estimatedInputTokens: roughTokens(system + user), maxOutputTokens });
     await ensureCentralUsageAvailable(student);
-    ensureCreditAvailable(student, estimatedCost.credits);
+    ensureCreditAvailable(student, estimatedCredits);
     const ai = await callAi({ model: cfg.editorModel, system, user, maxOutputTokens });
     const actualCost = ai.dryRun ? { usd: 0, costUsd: 0, credits: 0, creditsToDeduct: 0, purchaseKrw: 0, krw: 0 } : costToCredits({ model: ai.model, inputTokens: ai.inputTokens, outputTokens: ai.outputTokens });
     const centralUsage = ai.dryRun ? null : await recordCentralUsage(student, { model: ai.model, inputTokens: ai.inputTokens, outputTokens: ai.outputTokens, task: 'persona_editor' });

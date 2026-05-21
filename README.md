@@ -27,33 +27,23 @@ npm start
 
 `OPENAI_API_KEY`가 없으면 모의 응답으로 실행됩니다. 모의 응답은 크레딧을 차감하지 않습니다.
 
-## 비용 제어
+## 크레딧 정책
 
-기본값은 수업 운영을 기준으로 보수적으로 잡혀 있습니다.
+이 앱은 학생별 사용량을 credits로 제한한다.
 
-```env
-# 학생 1인당 기본 제공 크레딧
-CREDIT_BUDGET_PER_USER=30000
-# API 원가 1 USD당 차감할 크레딧
-CREDITS_PER_USD_COST=14000
-# 구매 기준 1 credit = 1원
-PURCHASE_KRW_PER_CREDIT=1
-MAX_PERSONAS=5
-MAX_ROUNDS_PER_SESSION=8
-MAX_MESSAGES_PER_SESSION=100
-MAX_OUTPUT_TOKENS=700
-```
+- 구매 기준: 1 credit = 1원
+- API 원가 기준: 원가 1 USD = 14,000 credits 차감
+- 학생 기본 한도: 30,000 credits
 
-크레딧 차감은 실제 환율을 사용하지 않습니다. 모델별 OpenAI 단가로 원가 `cost_usd`를 계산한 뒤 `ceil(cost_usd * 14000)` credits를 차감합니다. 구매가 기준으로는 `1 credit = 1원`이며, 학생 기본 30,000 credits는 구매가 기준 30,000원 상당, API 원가 기준 약 2.14 USD 한도입니다.
+예를 들어 OpenAI API 사용으로 원가 $0.10이 발생하면 다음과 같이 차감한다.
 
-앱은 요청 전에 예상 비용을 계산해 남은 크레딧보다 크면 차단하고, 응답 후 실제 사용량 기준으로 차감합니다.
+$0.10 × 14,000 = 1,400 credits
 
-- 경제형: 짧은 응답, 기본 모델, 낮은 출력 토큰
-- 균형형: 수업용 기본, 기본 모델
-- 심화형: 더 긴 분석, 프리미엄 모델, 비용 증가
-- 요약: 별도 요약 모델 사용
+학생에게 30,000 credits를 부여하면 API 원가 기준으로 약 $2.14까지 사용할 수 있다.
+실제 환율을 약 1 USD = 1,400원으로 보면 API 원가 약 3,000원 정도에 해당한다.
 
-모델 가격은 `src/server.js`의 `MODEL_PRICING_USD_PER_1M_TOKENS` 추정표를 사용합니다. 실제 API 가격은 바뀔 수 있으므로 배포 전 사용하는 모델의 최신 가격에 맞게 조정하세요.
+주의:
+크레딧 차감 공식은 실제 환율 계산이 아니라 수업 운영용 내부 과금/한도 계산 공식이다.
 
 ## 추천 운영 방식
 
