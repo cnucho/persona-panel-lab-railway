@@ -269,9 +269,9 @@
               </div>
             </div>
             <div class="guide" id="meetingGuide"></div>
-            <button class="green" id="createSessionBtn" data-i18n="startMeeting">회의 시작</button>
           </div>
         </details>
+        <button class="green" id="createSessionBtn" data-i18n="startMeeting">회의 시작</button>
       </section>
 
       <section>
@@ -1308,7 +1308,10 @@ $("enterBtn").onclick = async () => {
 
 $("createSessionBtn").onclick = async () => {
   try {
-    if (!student) throw new Error(t("enterFirst"));
+    if (!student) {
+      $("entryDetails").open = true;
+      throw new Error(t("enterFirst"));
+    }
     const data = await api("/api/sessions", {
       method: "POST",
       body: {
@@ -1335,8 +1338,15 @@ $("createSessionBtn").onclick = async () => {
 
 $("addPersonaBtn").onclick = async () => {
   try {
-    if (!student || !session) throw new Error(t("startFirst"));
-    if (!$("pName").value.trim() || !$("pRole").value.trim()) throw new Error(t("personaRequired"));
+    if (!student || !session) {
+      if (!student) $("entryDetails").open = true;
+      if (!session) $("meetingDetails").open = true;
+      throw new Error(t("startFirst"));
+    }
+    if (!$("pName").value.trim() || !$("pRole").value.trim()) {
+      $("personaDetails").open = true;
+      throw new Error(t("personaRequired"));
+    }
     await api(`/api/sessions/${session.id}/personas`, {
       method: "POST",
       body: {
