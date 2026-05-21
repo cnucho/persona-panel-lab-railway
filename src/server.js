@@ -406,9 +406,9 @@ function convertCostUsdToCredits(costUsd) {
 
 function costToCredits({ model, inputTokens, outputTokens }) {
   const costUsd = calculateCostUsd({ model, inputTokens, outputTokens });
-  const credits = Math.max(1, convertCostUsdToCredits(costUsd));
-  const purchaseKrw = credits * cfg.purchaseKrwPerCredit;
-  return { usd: costUsd, costUsd, credits, purchaseKrw, krw: purchaseKrw };
+  const creditsToDeduct = convertCostUsdToCredits(costUsd);
+  const purchaseKrw = creditsToDeduct * cfg.purchaseKrwPerCredit;
+  return { usd: costUsd, costUsd, credits: creditsToDeduct, creditsToDeduct, purchaseKrw, krw: purchaseKrw };
 }
 
 function apiError(status, message) {
@@ -454,6 +454,14 @@ function chargedCreditsFromCentralUsage(recordedUsage, fallbackCredits) {
   // Local policy is authoritative: credits_to_deduct = ceil(cost_usd * 14000).
   // Central usage is recorded for audit/budget sync, not for recalculating this app's charge.
   return fallbackCredits;
+}
+
+function applyCreditsToCost(cost, creditsToDeduct) {
+  cost.creditsToDeduct = creditsToDeduct;
+  cost.credits = creditsToDeduct;
+  cost.purchaseKrw = creditsToDeduct * cfg.purchaseKrwPerCredit;
+  cost.krw = cost.purchaseKrw;
+  return cost;
 }
 
 class MemoryStore {
@@ -1297,10 +1305,10 @@ app.post('/api/sessions/:id/message', async (req, res, next) => {
     ensureCreditAvailable(student, estimatedCost.credits);
 
     const ai = await callAi({ model, system, user: context, maxOutputTokens: preset.maxOutputTokens });
-    const actualCost = ai.dryRun ? { usd: 0, costUsd: 0, credits: 0, purchaseKrw: 0, krw: 0 } : costToCredits({ model: ai.model, inputTokens: ai.inputTokens, outputTokens: ai.outputTokens });
+    const actualCost = ai.dryRun ? { usd: 0, costUsd: 0, credits: 0, creditsToDeduct: 0, purchaseKrw: 0, krw: 0 } : costToCredits({ model: ai.model, inputTokens: ai.inputTokens, outputTokens: ai.outputTokens });
     const centralUsage = ai.dryRun ? null : await recordCentralUsage(student, { model: ai.model, inputTokens: ai.inputTokens, outputTokens: ai.outputTokens, task: 'persona_message' });
-    actualCost.credits = chargedCreditsFromCentralUsage(centralUsage, actualCost.credits);
-    const chargedStudent = await store.chargeStudent(student.id, Math.min(actualCost.credits, student.credit_limit - student.credits_used));
+    applyCreditsToCost(actualCost, chargedCreditsFromCentralUsage(centralUsage, actualCost.creditsToDeduct));
+    const chargedStudent = await store.chargeStudent(student.id, Math.min(actualCost.creditsToDeduct, student.credit_limit - student.credits_used));
     const speaker = mode === 'persona' ? targetPersona.name : '전문가 패널';
     const aiMessage = await store.createMessage({
       id: id('msg'),
@@ -1312,13 +1320,13 @@ app.post('/api/sessions/:id/message', async (req, res, next) => {
       model: ai.model,
       tokens_in: ai.inputTokens,
       tokens_out: ai.outputTokens,
-      credits_charged: actualCost.credits,
+      credits_charged: actualCost.creditsToDeduct,
       created_at: nowIso()
     });
     await store.updateSession(session.id, { round_count: session.round_count + 1 });
     res.json({
       message: aiMessage,
-      usage: { inputTokens: ai.inputTokens, outputTokens: ai.outputTokens, credits: actualCost.credits, costUsd: actualCost.costUsd, usd: actualCost.usd, purchaseKrw: actualCost.purchaseKrw, krw: actualCost.krw, dryRun: ai.dryRun, depth: depthKey },
+      usage: { inputTokens: ai.inputTokens, outputTokens: ai.outputTokens, credits: actualCost.creditsToDeduct, creditsToDeduct: actualCost.creditsToDeduct, costUsd: actualCost.costUsd, usd: actualCost.usd, purchaseKrw: actualCost.purchaseKrw, krw: actualCost.krw, dryRun: ai.dryRun, depth: depthKey },
       centralUsage: centralUsage?.budget || centralUsage?.usageLimit || null,
       student: chargedStudent,
       remainingCredits: chargedStudent.credit_limit - chargedStudent.credits_used
@@ -1352,10 +1360,10 @@ ${transcript}`;
     await ensureCentralUsageAvailable(student);
     ensureCreditAvailable(student, estimatedCost.credits);
     const ai = await callAi({ model: cfg.summaryModel, system, user, maxOutputTokens: Math.min(900, cfg.maxOutputTokens) });
-    const actualCost = ai.dryRun ? { usd: 0, costUsd: 0, credits: 0, purchaseKrw: 0, krw: 0 } : costToCredits({ model: ai.model, inputTokens: ai.inputTokens, outputTokens: ai.outputTokens });
+    const actualCost = ai.dryRun ? { usd: 0, costUsd: 0, credits: 0, creditsToDeduct: 0, purchaseKrw: 0, krw: 0 } : costToCredits({ model: ai.model, inputTokens: ai.inputTokens, outputTokens: ai.outputTokens });
     const centralUsage = ai.dryRun ? null : await recordCentralUsage(student, { model: ai.model, inputTokens: ai.inputTokens, outputTokens: ai.outputTokens, task: 'persona_summary' });
-    actualCost.credits = chargedCreditsFromCentralUsage(centralUsage, actualCost.credits);
-    const chargedStudent = await store.chargeStudent(student.id, Math.min(actualCost.credits, student.credit_limit - student.credits_used));
+    applyCreditsToCost(actualCost, chargedCreditsFromCentralUsage(centralUsage, actualCost.creditsToDeduct));
+    const chargedStudent = await store.chargeStudent(student.id, Math.min(actualCost.creditsToDeduct, student.credit_limit - student.credits_used));
     await store.updateSession(session.id, { rolling_summary: ai.text });
     const msg = await store.createMessage({
       id: id('msg'),
@@ -1367,10 +1375,10 @@ ${transcript}`;
       model: ai.model,
       tokens_in: ai.inputTokens,
       tokens_out: ai.outputTokens,
-      credits_charged: actualCost.credits,
+      credits_charged: actualCost.creditsToDeduct,
       created_at: nowIso()
     });
-    res.json({ summary: msg, rollingSummary: ai.text, usage: { inputTokens: ai.inputTokens, outputTokens: ai.outputTokens, credits: actualCost.credits, costUsd: actualCost.costUsd, usd: actualCost.usd, purchaseKrw: actualCost.purchaseKrw, krw: actualCost.krw, dryRun: ai.dryRun }, centralUsage: centralUsage?.budget || centralUsage?.usageLimit || null, student: chargedStudent, remainingCredits: chargedStudent.credit_limit - chargedStudent.credits_used });
+    res.json({ summary: msg, rollingSummary: ai.text, usage: { inputTokens: ai.inputTokens, outputTokens: ai.outputTokens, credits: actualCost.creditsToDeduct, creditsToDeduct: actualCost.creditsToDeduct, costUsd: actualCost.costUsd, usd: actualCost.usd, purchaseKrw: actualCost.purchaseKrw, krw: actualCost.krw, dryRun: ai.dryRun }, centralUsage: centralUsage?.budget || centralUsage?.usageLimit || null, student: chargedStudent, remainingCredits: chargedStudent.credit_limit - chargedStudent.credits_used });
   } catch (e) { next(e); }
 });
 
@@ -1403,10 +1411,10 @@ ${source}`;
     await ensureCentralUsageAvailable(student);
     ensureCreditAvailable(student, estimatedCost.credits);
     const ai = await callAi({ model: cfg.editorModel, system, user, maxOutputTokens });
-    const actualCost = ai.dryRun ? { usd: 0, costUsd: 0, credits: 0, purchaseKrw: 0, krw: 0 } : costToCredits({ model: ai.model, inputTokens: ai.inputTokens, outputTokens: ai.outputTokens });
+    const actualCost = ai.dryRun ? { usd: 0, costUsd: 0, credits: 0, creditsToDeduct: 0, purchaseKrw: 0, krw: 0 } : costToCredits({ model: ai.model, inputTokens: ai.inputTokens, outputTokens: ai.outputTokens });
     const centralUsage = ai.dryRun ? null : await recordCentralUsage(student, { model: ai.model, inputTokens: ai.inputTokens, outputTokens: ai.outputTokens, task: 'persona_editor' });
-    actualCost.credits = chargedCreditsFromCentralUsage(centralUsage, actualCost.credits);
-    const chargedStudent = await store.chargeStudent(student.id, Math.min(actualCost.credits, student.credit_limit - student.credits_used));
+    applyCreditsToCost(actualCost, chargedCreditsFromCentralUsage(centralUsage, actualCost.creditsToDeduct));
+    const chargedStudent = await store.chargeStudent(student.id, Math.min(actualCost.creditsToDeduct, student.credit_limit - student.credits_used));
     const msg = await store.createMessage({
       id: id('msg'),
       session_id: session.id,
@@ -1417,12 +1425,12 @@ ${source}`;
       model: ai.model,
       tokens_in: ai.inputTokens,
       tokens_out: ai.outputTokens,
-      credits_charged: actualCost.credits,
+      credits_charged: actualCost.creditsToDeduct,
       created_at: nowIso()
     });
     res.json({
       edited: msg,
-      usage: { inputTokens: ai.inputTokens, outputTokens: ai.outputTokens, credits: actualCost.credits, costUsd: actualCost.costUsd, usd: actualCost.usd, purchaseKrw: actualCost.purchaseKrw, krw: actualCost.krw, dryRun: ai.dryRun },
+      usage: { inputTokens: ai.inputTokens, outputTokens: ai.outputTokens, credits: actualCost.creditsToDeduct, creditsToDeduct: actualCost.creditsToDeduct, costUsd: actualCost.costUsd, usd: actualCost.usd, purchaseKrw: actualCost.purchaseKrw, krw: actualCost.krw, dryRun: ai.dryRun },
       centralUsage: centralUsage?.budget || centralUsage?.usageLimit || null,
       student: chargedStudent,
       remainingCredits: chargedStudent.credit_limit - chargedStudent.credits_used
