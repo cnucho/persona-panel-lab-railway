@@ -90,6 +90,24 @@
     .persona-list { display: grid; gap: 8px; margin-top: 10px; }
     .persona-item { border: 1px solid var(--line); border-radius: 8px; padding: 10px; background: #fbfdff; }
     .persona-item strong { display: block; margin-bottom: 3px; }
+    .persona-preview { margin-top: 10px; }
+    .persona-preview dl { display: grid; gap: 6px; margin: 0; }
+    .persona-preview div { display: grid; grid-template-columns: 92px minmax(0, 1fr); gap: 8px; }
+    .persona-preview dt { color: var(--text); font-weight: 700; }
+    .persona-preview dd { margin: 0; }
+    details.persona-details {
+      margin-top: 10px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fbfdff;
+      padding: 10px;
+    }
+    details.persona-details summary {
+      cursor: pointer;
+      font-weight: 700;
+      color: var(--text);
+    }
+    .persona-details-body { margin-top: 10px; }
     .tabs { display: flex; gap: 8px; flex-wrap: wrap; margin: 10px 0; }
     .tab {
       border: 1px solid var(--line);
@@ -215,22 +233,28 @@
         <h2 data-i18n="sectionPersona">3. 전문가 퍼소나 생성</h2>
         <label for="templateSelect" data-i18n="quickTemplate">빠른 템플릿</label>
         <select id="templateSelect"></select>
-        <label for="pName" data-i18n="personaName">이름</label>
-        <input id="pName" />
-        <label for="pRole" data-i18n="personaRole">역할/사회적 위치</label>
-        <textarea id="pRole"></textarea>
-        <label for="pExpertise" data-i18n="personaExpertise">전문 영역과 경험</label>
-        <textarea id="pExpertise"></textarea>
-        <label for="pKnowledge" data-i18n="personaKnowledge">인터뷰에서 사용할 지식</label>
-        <textarea id="pKnowledge"></textarea>
-        <label for="pValues" data-i18n="personaValues">중시 가치와 이해관계</label>
-        <textarea id="pValues"></textarea>
-        <label for="pRules" data-i18n="personaRules">판단 규칙</label>
-        <textarea id="pRules"></textarea>
-        <label for="pStyle" data-i18n="personaStyle">말하기 방식과 한계</label>
-        <input id="pStyle" />
-        <label for="pLimits" data-i18n="personaLimits">한계 또는 금지할 말</label>
-        <textarea id="pLimits"></textarea>
+        <div class="guide persona-preview" id="templatePreview"></div>
+        <details class="persona-details" id="personaDetails">
+          <summary data-i18n="editPersonaDetails">상세 편집</summary>
+          <div class="persona-details-body">
+            <label for="pName" data-i18n="personaName">이름</label>
+            <input id="pName" />
+            <label for="pRole" data-i18n="personaRole">역할/사회적 위치</label>
+            <textarea id="pRole"></textarea>
+            <label for="pExpertise" data-i18n="personaExpertise">전문 영역과 경험</label>
+            <textarea id="pExpertise"></textarea>
+            <label for="pKnowledge" data-i18n="personaKnowledge">인터뷰에서 사용할 지식</label>
+            <textarea id="pKnowledge"></textarea>
+            <label for="pValues" data-i18n="personaValues">중시 가치와 이해관계</label>
+            <textarea id="pValues"></textarea>
+            <label for="pRules" data-i18n="personaRules">판단 규칙</label>
+            <textarea id="pRules"></textarea>
+            <label for="pStyle" data-i18n="personaStyle">말하기 방식과 한계</label>
+            <input id="pStyle" />
+            <label for="pLimits" data-i18n="personaLimits">한계 또는 금지할 말</label>
+            <textarea id="pLimits"></textarea>
+          </div>
+        </details>
         <div class="guide" id="personaRuleGuide"></div>
         <button id="addPersonaBtn" data-i18n="addPersona">퍼소나 추가</button>
         <div class="persona-list" id="personaList"></div>
@@ -328,6 +352,9 @@ const SYSTEM = {
     sessionHint: "회의를 시작하세요.",
     sectionPersona: "3. 전문가 퍼소나 생성",
     quickTemplate: "빠른 템플릿",
+    blankPersonaForm: "빈 양식",
+    templatePreviewEmpty: "빈 양식입니다. 직접 상세 편집을 열어 작성하거나 템플릿을 선택하면 자동으로 채워집니다.",
+    editPersonaDetails: "상세 편집",
     personaName: "이름",
     personaRole: "역할/사회적 위치",
     personaExpertise: "전문 영역과 경험",
@@ -364,6 +391,7 @@ const SYSTEM = {
     writeMessage: "메시지를 입력하세요.",
     meetingStarted: "회의가 시작되었습니다. 이제 전문가 퍼소나를 추가하세요.",
     personaAdded: "퍼소나가 추가되었습니다.",
+    personaRequired: "퍼소나 이름과 역할을 입력하거나 템플릿을 선택하세요.",
     generating: "응답 생성 중입니다.",
     summarizing: "요약 생성 중입니다.",
     editing: "GPT 에디터가 편집 중입니다.",
@@ -428,6 +456,9 @@ const SYSTEM = {
     sessionHint: "Start a meeting.",
     sectionPersona: "3. Create Expert Persona",
     quickTemplate: "Quick Template",
+    blankPersonaForm: "Blank form",
+    templatePreviewEmpty: "This is a blank form. Open detailed editing to write your own persona, or choose a template to fill it automatically.",
+    editPersonaDetails: "Edit Details",
     personaName: "Name",
     personaRole: "Role / Social Position",
     personaExpertise: "Expertise and Experience",
@@ -464,6 +495,7 @@ const SYSTEM = {
     writeMessage: "Write a message.",
     meetingStarted: "Meeting started. Add expert personas next.",
     personaAdded: "Persona added.",
+    personaRequired: "Enter a persona name and role, or choose a template.",
     generating: "Generating response.",
     summarizing: "Generating summary.",
     editing: "GPT editor is revising.",
@@ -720,14 +752,47 @@ function renderMeetingGuide() {
 }
 
 function renderTemplates(applyCurrent = false) {
-  const current = Number($("templateSelect").value || 0);
+  const current = $("templateSelect").value;
   const templates = TEMPLATES[uiLanguage] || TEMPLATES.ko;
-  $("templateSelect").innerHTML = templates.map((item, index) => `<option value="${index}">${escapeHtml(item.label)}</option>`).join("");
-  $("templateSelect").value = String(Math.min(current, templates.length - 1));
-  if (applyCurrent) applyTemplate(templates[Number($("templateSelect").value)]);
+  $("templateSelect").innerHTML = [
+    `<option value="">${escapeHtml(t("blankPersonaForm"))}</option>`,
+    ...templates.map((item, index) => `<option value="${index}">${escapeHtml(item.label)}</option>`)
+  ].join("");
+  $("templateSelect").value = current === "" || templates[Number(current)] ? current : "";
+  if (applyCurrent && $("templateSelect").value !== "") {
+    applyTemplate(templates[Number($("templateSelect").value)]);
+  } else if (!$("templateSelect").value) {
+    clearPersonaForm();
+  }
+  renderTemplatePreview($("templateSelect").value === "" ? null : templates[Number($("templateSelect").value)]);
+}
+
+function clearPersonaForm() {
+  ["pName", "pRole", "pExpertise", "pKnowledge", "pValues", "pRules", "pStyle", "pLimits"].forEach((id) => {
+    $(id).value = "";
+  });
+}
+
+function renderTemplatePreview(item) {
+  if (!item) {
+    $("templatePreview").textContent = t("templatePreviewEmpty");
+    return;
+  }
+  const fields = [
+    [t("personaName"), item.name],
+    [t("personaRole"), item.role],
+    [t("personaExpertise"), item.expertise],
+    [t("personaValues"), item.values]
+  ];
+  $("templatePreview").innerHTML = `<dl>${fields.map(([label, value]) => `<div><dt>${escapeHtml(label)}</dt><dd>${escapeHtml(value)}</dd></div>`).join("")}</dl>`;
 }
 
 function applyTemplate(item) {
+  if (!item) {
+    clearPersonaForm();
+    renderTemplatePreview(null);
+    return;
+  }
   $("pName").value = item.name;
   $("pRole").value = item.role;
   $("pExpertise").value = item.expertise;
@@ -736,6 +801,8 @@ function applyTemplate(item) {
   $("pRules").value = item.rules;
   $("pStyle").value = item.style;
   $("pLimits").value = item.limits || "";
+  $("personaDetails").open = true;
+  renderTemplatePreview(item);
 }
 
 function renderExpertLanguages() {
@@ -898,7 +965,7 @@ async function init() {
   $("loginEmail").value = localStorage.getItem("pp_login_email") || authSession?.email || "";
   renderExpertLanguages();
   renderReportLanguages();
-  applySystemLanguage({ forceDefaults: true, applyTemplateValues: true });
+  applySystemLanguage({ forceDefaults: true, applyTemplateValues: false });
   if (session) await loadSession();
   if (!config.hasOpenAiKey) setStatus(t("mockNotice"), "warn");
 }
@@ -910,7 +977,7 @@ $("interfaceLanguage").onchange = (e) => {
     reportLanguage = uiLanguage;
     renderReportLanguages();
   }
-  applySystemLanguage({ applyTemplateValues: true });
+  applySystemLanguage({ applyTemplateValues: $("templateSelect").value !== "" });
 };
 
 $("expertLanguage").onchange = (e) => {
@@ -925,7 +992,8 @@ $("reportLanguage").onchange = (e) => {
 
 $("templateSelect").onchange = () => {
   const templates = TEMPLATES[uiLanguage] || TEMPLATES.ko;
-  applyTemplate(templates[Number($("templateSelect").value)]);
+  const selected = $("templateSelect").value;
+  applyTemplate(selected === "" ? null : templates[Number(selected)]);
 };
 
 $("meetingType").onchange = renderMeetingGuide;
@@ -990,6 +1058,7 @@ $("createSessionBtn").onclick = async () => {
 $("addPersonaBtn").onclick = async () => {
   try {
     if (!student || !session) throw new Error(t("startFirst"));
+    if (!$("pName").value.trim() || !$("pRole").value.trim()) throw new Error(t("personaRequired"));
     await api(`/api/sessions/${session.id}/personas`, {
       method: "POST",
       body: {
