@@ -11,6 +11,7 @@ import JSZip from 'jszip';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+const CREDITS_PER_USD_COST = 14000;
 
 const cfg = {
   port: Number(process.env.PORT || 3000),
@@ -19,10 +20,8 @@ const cfg = {
   editorModel: process.env.EDITOR_MODEL || process.env.SUMMARY_MODEL || 'gpt-5.4-nano',
   premiumModel: process.env.PREMIUM_MODEL || process.env.DEFAULT_MODEL || 'gpt-5.4-mini',
   creditBudget: Number(process.env.CREDIT_BUDGET_PER_USER || 30000),
-  krwPerCredit: Number(process.env.KRW_PER_CREDIT || 0.1),
-  costUsdToCredits: Number(process.env.COST_USD_TO_CREDITS || process.env.CREDITS_PER_USD_COST || 14000),
+  costUsdToCredits: CREDITS_PER_USD_COST,
   purchaseKrwPerCredit: Number(process.env.CREDIT_PURCHASE_KRW_PER_CREDIT || 1),
-  usdToKrw: Number(process.env.USD_TO_KRW || 1400),
   maxPersonas: Number(process.env.MAX_PERSONAS || 5),
   maxRounds: Number(process.env.MAX_ROUNDS_PER_SESSION || 8),
   maxMessages: Number(process.env.MAX_MESSAGES_PER_SESSION || 100),
@@ -399,9 +398,9 @@ function languageInstruction(languageKey) {
 function costToCredits({ model, inputTokens, outputTokens }) {
   const p = priceFor(model);
   const usd = (inputTokens / 1_000_000) * p.input + (outputTokens / 1_000_000) * p.output;
-  const krw = usd * cfg.usdToKrw;
   const credits = Math.max(1, Math.ceil(usd * cfg.costUsdToCredits));
-  return { usd, krw, credits };
+  const purchaseKrw = credits * cfg.purchaseKrwPerCredit;
+  return { usd, costUsd: usd, credits, purchaseKrw, krw: purchaseKrw };
 }
 
 function apiError(status, message) {
@@ -444,8 +443,8 @@ async function recordCentralUsage(student, { model, inputTokens, outputTokens, t
 }
 
 function chargedCreditsFromCentralUsage(recordedUsage, fallbackCredits) {
-  const value = Number(recordedUsage?.cost?.appCreditKrw ?? recordedUsage?.cost?.app_credit_krw);
-  if (Number.isFinite(value)) return Math.max(0, Math.ceil(value));
+  // Local policy is authoritative: credits_to_deduct = ceil(cost_usd * 14000).
+  // Central usage is recorded for audit/budget sync, not for recalculating this app's charge.
   return fallbackCredits;
 }
 
@@ -1106,11 +1105,11 @@ app.get('/api/config', (req, res) => {
     creditBudget: cfg.creditBudget,
     costCurrency: 'USD',
     costUsdToCredits: cfg.costUsdToCredits,
-    creditDeductionFormula: 'cost_usd * cost_usd_to_credits',
-    actualKrwPerCredit: cfg.krwPerCredit,
-    krwPerCredit: cfg.krwPerCredit,
+    creditsPerUsdCost: cfg.costUsdToCredits,
+    creditDeductionFormula: 'ceil(cost_usd * 14000)',
     purchaseKrwPerCredit: cfg.purchaseKrwPerCredit,
-    usdToKrw: cfg.usdToKrw,
+    defaultCreditPurchaseValueKrw: cfg.creditBudget * cfg.purchaseKrwPerCredit,
+    defaultIncludedCostUsd: cfg.creditBudget / cfg.costUsdToCredits,
     requireAccessCode: cfg.requireAccessCode,
     centralAuthConfigured: centralAuthEnabled(),
     sharedSessionCookie: cfg.sharedSessionCookie,
@@ -1290,7 +1289,7 @@ app.post('/api/sessions/:id/message', async (req, res, next) => {
     ensureCreditAvailable(student, estimatedCost.credits);
 
     const ai = await callAi({ model, system, user: context, maxOutputTokens: preset.maxOutputTokens });
-    const actualCost = ai.dryRun ? { usd: 0, krw: 0, credits: 0 } : costToCredits({ model: ai.model, inputTokens: ai.inputTokens, outputTokens: ai.outputTokens });
+    const actualCost = ai.dryRun ? { usd: 0, costUsd: 0, credits: 0, purchaseKrw: 0, krw: 0 } : costToCredits({ model: ai.model, inputTokens: ai.inputTokens, outputTokens: ai.outputTokens });
     const centralUsage = ai.dryRun ? null : await recordCentralUsage(student, { model: ai.model, inputTokens: ai.inputTokens, outputTokens: ai.outputTokens, task: 'persona_message' });
     actualCost.credits = chargedCreditsFromCentralUsage(centralUsage, actualCost.credits);
     const chargedStudent = await store.chargeStudent(student.id, Math.min(actualCost.credits, student.credit_limit - student.credits_used));
@@ -1311,7 +1310,7 @@ app.post('/api/sessions/:id/message', async (req, res, next) => {
     await store.updateSession(session.id, { round_count: session.round_count + 1 });
     res.json({
       message: aiMessage,
-      usage: { inputTokens: ai.inputTokens, outputTokens: ai.outputTokens, credits: actualCost.credits, usd: actualCost.usd, krw: actualCost.krw, dryRun: ai.dryRun, depth: depthKey },
+      usage: { inputTokens: ai.inputTokens, outputTokens: ai.outputTokens, credits: actualCost.credits, costUsd: actualCost.costUsd, usd: actualCost.usd, purchaseKrw: actualCost.purchaseKrw, krw: actualCost.krw, dryRun: ai.dryRun, depth: depthKey },
       centralUsage: centralUsage?.budget || centralUsage?.usageLimit || null,
       student: chargedStudent,
       remainingCredits: chargedStudent.credit_limit - chargedStudent.credits_used
@@ -1345,7 +1344,7 @@ ${transcript}`;
     await ensureCentralUsageAvailable(student);
     ensureCreditAvailable(student, estimatedCost.credits);
     const ai = await callAi({ model: cfg.summaryModel, system, user, maxOutputTokens: Math.min(900, cfg.maxOutputTokens) });
-    const actualCost = ai.dryRun ? { usd: 0, krw: 0, credits: 0 } : costToCredits({ model: ai.model, inputTokens: ai.inputTokens, outputTokens: ai.outputTokens });
+    const actualCost = ai.dryRun ? { usd: 0, costUsd: 0, credits: 0, purchaseKrw: 0, krw: 0 } : costToCredits({ model: ai.model, inputTokens: ai.inputTokens, outputTokens: ai.outputTokens });
     const centralUsage = ai.dryRun ? null : await recordCentralUsage(student, { model: ai.model, inputTokens: ai.inputTokens, outputTokens: ai.outputTokens, task: 'persona_summary' });
     actualCost.credits = chargedCreditsFromCentralUsage(centralUsage, actualCost.credits);
     const chargedStudent = await store.chargeStudent(student.id, Math.min(actualCost.credits, student.credit_limit - student.credits_used));
@@ -1363,7 +1362,7 @@ ${transcript}`;
       credits_charged: actualCost.credits,
       created_at: nowIso()
     });
-    res.json({ summary: msg, rollingSummary: ai.text, usage: { inputTokens: ai.inputTokens, outputTokens: ai.outputTokens, credits: actualCost.credits, usd: actualCost.usd, krw: actualCost.krw, dryRun: ai.dryRun }, centralUsage: centralUsage?.budget || centralUsage?.usageLimit || null, student: chargedStudent, remainingCredits: chargedStudent.credit_limit - chargedStudent.credits_used });
+    res.json({ summary: msg, rollingSummary: ai.text, usage: { inputTokens: ai.inputTokens, outputTokens: ai.outputTokens, credits: actualCost.credits, costUsd: actualCost.costUsd, usd: actualCost.usd, purchaseKrw: actualCost.purchaseKrw, krw: actualCost.krw, dryRun: ai.dryRun }, centralUsage: centralUsage?.budget || centralUsage?.usageLimit || null, student: chargedStudent, remainingCredits: chargedStudent.credit_limit - chargedStudent.credits_used });
   } catch (e) { next(e); }
 });
 
@@ -1396,7 +1395,7 @@ ${source}`;
     await ensureCentralUsageAvailable(student);
     ensureCreditAvailable(student, estimatedCost.credits);
     const ai = await callAi({ model: cfg.editorModel, system, user, maxOutputTokens });
-    const actualCost = ai.dryRun ? { usd: 0, krw: 0, credits: 0 } : costToCredits({ model: ai.model, inputTokens: ai.inputTokens, outputTokens: ai.outputTokens });
+    const actualCost = ai.dryRun ? { usd: 0, costUsd: 0, credits: 0, purchaseKrw: 0, krw: 0 } : costToCredits({ model: ai.model, inputTokens: ai.inputTokens, outputTokens: ai.outputTokens });
     const centralUsage = ai.dryRun ? null : await recordCentralUsage(student, { model: ai.model, inputTokens: ai.inputTokens, outputTokens: ai.outputTokens, task: 'persona_editor' });
     actualCost.credits = chargedCreditsFromCentralUsage(centralUsage, actualCost.credits);
     const chargedStudent = await store.chargeStudent(student.id, Math.min(actualCost.credits, student.credit_limit - student.credits_used));
@@ -1415,7 +1414,7 @@ ${source}`;
     });
     res.json({
       edited: msg,
-      usage: { inputTokens: ai.inputTokens, outputTokens: ai.outputTokens, credits: actualCost.credits, usd: actualCost.usd, krw: actualCost.krw, dryRun: ai.dryRun },
+      usage: { inputTokens: ai.inputTokens, outputTokens: ai.outputTokens, credits: actualCost.credits, costUsd: actualCost.costUsd, usd: actualCost.usd, purchaseKrw: actualCost.purchaseKrw, krw: actualCost.krw, dryRun: ai.dryRun },
       centralUsage: centralUsage?.budget || centralUsage?.usageLimit || null,
       student: chargedStudent,
       remainingCredits: chargedStudent.credit_limit - chargedStudent.credits_used

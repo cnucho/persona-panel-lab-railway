@@ -800,6 +800,14 @@ function renderCredit(remaining) {
   $("creditProgress").style.width = `${pct}%`;
 }
 
+function formatUsageCost(usage) {
+  const costUsd = Number(usage?.costUsd ?? usage?.usd ?? 0);
+  const purchaseKrw = Number(usage?.purchaseKrw ?? usage?.credits ?? 0);
+  const usdText = costUsd.toFixed(6).replace(/0+$/, "").replace(/\.$/, "");
+  if (uiLanguage === "en") return `cost USD $${usdText} · purchase value ${Math.round(purchaseKrw).toLocaleString()} KRW`;
+  return `원가 USD $${usdText} · 구매가 기준 ${Math.round(purchaseKrw).toLocaleString()}원`;
+}
+
 function renderPersonas() {
   $("personaList").innerHTML = personas.length
     ? personas.map((p) => `<div class="persona-item"><strong>${escapeHtml(p.name)}</strong><div class="hint">${escapeHtml(p.role)}</div></div>`).join("")
@@ -1017,7 +1025,7 @@ $("sendBtn").onclick = async () => {
     $("messageInput").value = "";
     await loadSession();
     const dry = data.usage.dryRun ? ` · ${t("mockResponse")}` : "";
-    setStatus(`${t("charged")} ${data.usage.credits} credits · ${t("approx")} ${Math.round(data.usage.krw).toLocaleString()} KRW · ${t("inputTokens")} ${data.usage.inputTokens}, ${t("outputTokens")} ${data.usage.outputTokens}${dry}`, "good");
+    setStatus(`${t("charged")} ${data.usage.credits} credits · ${formatUsageCost(data.usage)} · ${t("inputTokens")} ${data.usage.inputTokens}, ${t("outputTokens")} ${data.usage.outputTokens}${dry}`, "good");
   } catch (e) {
     setStatus(e.message, "danger");
   } finally {
@@ -1036,7 +1044,7 @@ $("summaryBtn").onclick = async () => {
     renderCredit(data.remainingCredits);
     await loadSession();
     const dry = data.usage.dryRun ? ` · ${t("mockResponse")}` : "";
-    setStatus(`${t("summaryCharged")} ${data.usage.credits} credits · ${t("approx")} ${Math.round(data.usage.krw).toLocaleString()} KRW${dry}`, "good");
+    setStatus(`${t("summaryCharged")} ${data.usage.credits} credits · ${formatUsageCost(data.usage)}${dry}`, "good");
   } catch (e) {
     setStatus(e.message, "danger");
   } finally {
@@ -1062,7 +1070,7 @@ $("editorBtn").onclick = async () => {
     renderCredit(data.remainingCredits);
     await loadSession();
     const dry = data.usage.dryRun ? ` · ${t("mockResponse")}` : "";
-    setStatus(`${t("editorCharged")} ${data.usage.credits} credits · ${t("approx")} ${Math.round(data.usage.krw).toLocaleString()} KRW${dry}`, "good");
+    setStatus(`${t("editorCharged")} ${data.usage.credits} credits · ${formatUsageCost(data.usage)}${dry}`, "good");
   } catch (e) {
     setStatus(e.message, "danger");
   } finally {

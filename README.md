@@ -33,13 +33,14 @@ npm start
 
 ```env
 CREDIT_BUDGET_PER_USER=30000
-KRW_PER_CREDIT=0.1
-USD_TO_KRW=1400
+CREDIT_PURCHASE_KRW_PER_CREDIT=1
 MAX_PERSONAS=5
 MAX_ROUNDS_PER_SESSION=8
 MAX_MESSAGES_PER_SESSION=100
 MAX_OUTPUT_TOKENS=700
 ```
+
+크레딧 차감은 실제 환율을 사용하지 않습니다. 모델별 OpenAI 단가로 원가 `cost_usd`를 계산한 뒤 `ceil(cost_usd * 14000)` credits를 차감합니다. 구매가 기준으로는 `1 credit = 1원`이며, 학생 기본 30,000 credits는 구매가 기준 30,000원 상당, API 원가 기준 약 2.14 USD 한도입니다.
 
 앱은 요청 전에 예상 비용을 계산해 남은 크레딧보다 크면 차단하고, 응답 후 실제 사용량 기준으로 차감합니다.
 
