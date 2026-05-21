@@ -249,23 +249,29 @@
 
       <section>
         <h2 data-i18n="sectionMeeting">2. 회의 만들기</h2>
-        <label for="title" data-i18n="meetingTitle">회의 제목</label>
-        <input id="title" />
-        <label for="topic" data-i18n="topic">주제</label>
-        <textarea id="topic"></textarea>
-        <div class="grid2">
-          <div>
-            <label for="meetingType" data-i18n="meetingType">회의 종류</label>
-            <select id="meetingType"></select>
-          </div>
-          <div>
-            <label for="place" data-i18n="place">상황</label>
-            <input id="place" />
-          </div>
-        </div>
-        <div class="guide" id="meetingGuide"></div>
-        <button class="green" id="createSessionBtn" data-i18n="startMeeting">회의 시작</button>
         <div class="status" id="sessionInfo" data-i18n="sessionHint">회의를 시작하세요.</div>
+        <details class="entry-details" id="meetingDetails" open>
+          <summary data-i18n="meetingDetails">회의 설정</summary>
+          <div class="entry-details-body">
+            <div class="hint" data-i18n="meetingTemplateHint">아래 제목과 주제는 예시 템플릿입니다. 수업 주제에 맞게 고쳐 쓰세요.</div>
+            <label for="title" data-i18n="meetingTitle">회의 제목</label>
+            <input id="title" />
+            <label for="topic" data-i18n="topic">주제</label>
+            <textarea id="topic"></textarea>
+            <div class="grid2">
+              <div>
+                <label for="meetingType" data-i18n="meetingType">회의 종류</label>
+                <select id="meetingType"></select>
+              </div>
+              <div>
+                <label for="place" data-i18n="place">상황</label>
+                <input id="place" />
+              </div>
+            </div>
+            <div class="guide" id="meetingGuide"></div>
+            <button class="green" id="createSessionBtn" data-i18n="startMeeting">회의 시작</button>
+          </div>
+        </details>
       </section>
 
       <section>
@@ -395,6 +401,8 @@ const SYSTEM = {
     enter: "입장",
     creditHint: "입장하면 크레딧이 표시됩니다.",
     sectionMeeting: "2. 회의 만들기",
+    meetingDetails: "회의 설정",
+    meetingTemplateHint: "아래 제목과 주제는 예시 템플릿입니다. 수업 주제에 맞게 고쳐 쓰세요.",
     meetingTitle: "회의 제목",
     topic: "주제",
     meetingType: "회의 종류",
@@ -521,6 +529,8 @@ const SYSTEM = {
     enter: "Enter",
     creditHint: "Credits will appear after entry.",
     sectionMeeting: "2. Create Meeting",
+    meetingDetails: "Meeting Settings",
+    meetingTemplateHint: "The title and topic below are example templates. Edit them for your class topic.",
     meetingTitle: "Meeting Title",
     topic: "Topic",
     meetingType: "Meeting Type",
@@ -1081,6 +1091,7 @@ async function init() {
   applySystemLanguage({ forceDefaults: true, applyTemplateValues: false });
   $("passwordLoginBlock").style.display = config?.centralAuthConfigured ? "" : "none";
   $("entryDetails").open = !student;
+  $("meetingDetails").open = !session;
   if (session) await loadSession();
   if (!config.hasOpenAiKey) setStatus(t("mockNotice"), "warn");
 }
@@ -1181,6 +1192,7 @@ $("createSessionBtn").onclick = async () => {
     activeTab = "shared";
     saveState();
     await loadSession();
+    $("meetingDetails").open = false;
     setStatus(t("meetingStarted"), "good");
   } catch (e) {
     setStatus(e.message, "danger");
