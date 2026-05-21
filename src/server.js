@@ -464,6 +464,27 @@ function applyCreditsToCost(cost, creditsToDeduct) {
   return cost;
 }
 
+function usagePayload(ai, cost, extra = {}) {
+  return {
+    model: ai.model,
+    input_tokens: ai.inputTokens,
+    output_tokens: ai.outputTokens,
+    cost_usd: cost.costUsd,
+    credits_per_usd_cost: cfg.costUsdToCredits,
+    credits_deducted: cost.creditsToDeduct,
+    purchase_krw_per_credit: cfg.purchaseKrwPerCredit,
+    inputTokens: ai.inputTokens,
+    outputTokens: ai.outputTokens,
+    costUsd: cost.costUsd,
+    credits: cost.creditsToDeduct,
+    creditsToDeduct: cost.creditsToDeduct,
+    purchaseKrw: cost.purchaseKrw,
+    krw: cost.krw,
+    dryRun: ai.dryRun,
+    ...extra
+  };
+}
+
 class MemoryStore {
   constructor() {
     this.students = new Map();
@@ -1326,7 +1347,7 @@ app.post('/api/sessions/:id/message', async (req, res, next) => {
     await store.updateSession(session.id, { round_count: session.round_count + 1 });
     res.json({
       message: aiMessage,
-      usage: { inputTokens: ai.inputTokens, outputTokens: ai.outputTokens, credits: actualCost.creditsToDeduct, creditsToDeduct: actualCost.creditsToDeduct, costUsd: actualCost.costUsd, usd: actualCost.usd, purchaseKrw: actualCost.purchaseKrw, krw: actualCost.krw, dryRun: ai.dryRun, depth: depthKey },
+      usage: usagePayload(ai, actualCost, { depth: depthKey }),
       centralUsage: centralUsage?.budget || centralUsage?.usageLimit || null,
       student: chargedStudent,
       remainingCredits: chargedStudent.credit_limit - chargedStudent.credits_used
@@ -1378,7 +1399,7 @@ ${transcript}`;
       credits_charged: actualCost.creditsToDeduct,
       created_at: nowIso()
     });
-    res.json({ summary: msg, rollingSummary: ai.text, usage: { inputTokens: ai.inputTokens, outputTokens: ai.outputTokens, credits: actualCost.creditsToDeduct, creditsToDeduct: actualCost.creditsToDeduct, costUsd: actualCost.costUsd, usd: actualCost.usd, purchaseKrw: actualCost.purchaseKrw, krw: actualCost.krw, dryRun: ai.dryRun }, centralUsage: centralUsage?.budget || centralUsage?.usageLimit || null, student: chargedStudent, remainingCredits: chargedStudent.credit_limit - chargedStudent.credits_used });
+    res.json({ summary: msg, rollingSummary: ai.text, usage: usagePayload(ai, actualCost), centralUsage: centralUsage?.budget || centralUsage?.usageLimit || null, student: chargedStudent, remainingCredits: chargedStudent.credit_limit - chargedStudent.credits_used });
   } catch (e) { next(e); }
 });
 
@@ -1430,7 +1451,7 @@ ${source}`;
     });
     res.json({
       edited: msg,
-      usage: { inputTokens: ai.inputTokens, outputTokens: ai.outputTokens, credits: actualCost.creditsToDeduct, creditsToDeduct: actualCost.creditsToDeduct, costUsd: actualCost.costUsd, usd: actualCost.usd, purchaseKrw: actualCost.purchaseKrw, krw: actualCost.krw, dryRun: ai.dryRun },
+      usage: usagePayload(ai, actualCost),
       centralUsage: centralUsage?.budget || centralUsage?.usageLimit || null,
       student: chargedStudent,
       remainingCredits: chargedStudent.credit_limit - chargedStudent.credits_used
