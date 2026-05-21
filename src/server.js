@@ -35,6 +35,8 @@ const cfg = {
   sharedSessionCookie: process.env.SHARED_SESSION_COOKIE || 'shared_ai_session',
   appId: process.env.APP_ID || 'persona-panel-lab',
   appName: process.env.APP_NAME || 'Persona Panel Lab',
+  appUrl: process.env.APP_URL || process.env.APP_PUBLIC_URL || '',
+  appVisibility: process.env.APP_VISIBILITY || 'public',
   appCreditPolicies: process.env.APP_CREDIT_POLICIES || process.env.APP_CREDIT_POLICY || 'consumerinsight.kr=0,*=10',
   appCreditMarkup: Number(process.env.APP_CREDIT_MARKUP || 10),
   starterActualCostKrw: Number(process.env.STARTER_ACTUAL_COST_KRW || 3000)
@@ -203,6 +205,8 @@ function centralAppPayload(extra = {}) {
   return {
     appId: cfg.appId,
     appName: cfg.appName,
+    appUrl: cfg.appUrl,
+    visibility: cfg.appVisibility,
     usagePolicy: centralUsagePolicy(),
     appCreditPolicies: cfg.appCreditPolicies,
     ...extra
@@ -887,6 +891,8 @@ app.get('/api/config', (req, res) => {
     centralAuthConfigured: centralAuthEnabled(),
     sharedSessionCookie: cfg.sharedSessionCookie,
     appCreditPolicies: cfg.appCreditPolicies,
+    appVisibility: cfg.appVisibility,
+    appUrl: cfg.appUrl,
     hasOpenAiKey: Boolean(cfg.openaiKey),
     meetingTypes: Object.fromEntries(Object.entries(MEETING_TYPES).map(([k, v]) => [k, v.label])),
     depthPresets: Object.fromEntries(Object.entries(DEPTH_PRESETS).map(([k, v]) => [k, { label: v.label, maxOutputTokens: v.maxOutputTokens }])),
