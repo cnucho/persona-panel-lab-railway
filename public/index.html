@@ -217,6 +217,8 @@
         <textarea id="pRules"></textarea>
         <label for="pStyle" data-i18n="personaStyle">말하기 방식과 한계</label>
         <input id="pStyle" />
+        <label for="pLimits" data-i18n="personaLimits">한계</label>
+        <textarea id="pLimits"></textarea>
         <button id="addPersonaBtn" data-i18n="addPersona">퍼소나 추가</button>
         <div class="persona-list" id="personaList"></div>
       </section>
@@ -313,7 +315,8 @@ const SYSTEM = {
     personaKnowledge: "인터뷰에서 사용할 지식",
     personaValues: "중시 가치와 이해관계",
     personaRules: "판단 규칙",
-    personaStyle: "말하기 방식과 한계",
+    personaStyle: "말하기 방식",
+    personaLimits: "한계",
     addPersona: "퍼소나 추가",
     sectionInterview: "4. 인터뷰",
     interviewHint: "공동 대화장에서는 패널처럼, 개별 탭에서는 1:1 심층면접처럼 질문합니다.",
@@ -407,7 +410,8 @@ const SYSTEM = {
     personaKnowledge: "Knowledge Used in Interview",
     personaValues: "Values and Interests",
     personaRules: "Judgment Rules",
-    personaStyle: "Speaking Style and Limits",
+    personaStyle: "Speaking Style",
+    personaLimits: "Limits",
     addPersona: "Add Persona",
     sectionInterview: "4. Interview",
     interviewHint: "Use the shared room like a panel, or a persona tab like a 1:1 interview.",
@@ -506,7 +510,8 @@ const TEMPLATES = {
       knowledge: "정확도만으로 타당성을 보장할 수 없으며, 분류명과 기준은 사람의 자기이해와 제도 접근성에 영향을 준다.",
       values: "공정성, 설명 가능성, 이의제기권, 낙인 방지",
       rules: "사실과 가치 판단을 분리하고, 분류가 누구에게 불리한지 반드시 묻는다.",
-      style: "분석적이고 신중하게 말하며, 자료가 부족하면 검증 필요라고 표시한다."
+      style: "분석적이고 신중하게 말하며, 자료가 부족하면 검증 필요라고 표시한다.",
+      limits: "실제 전문가 의견이나 실제 조사 결과처럼 단정하지 않는다."
     },
     {
       label: "데이터 검증자",
@@ -516,7 +521,8 @@ const TEMPLATES = {
       knowledge: "확인 가능한 사실과 확인 불가능한 추정은 분리해야 하며, 근거 없는 수치와 출처는 사용하면 안 된다.",
       values: "진실성, 재현 가능성, 투명성",
       rules: "주장마다 근거 수준을 묻고, 검증 경로가 없으면 결론 강도를 낮춘다.",
-      style: "짧고 단호하게 말하되 불확실성을 숨기지 않는다."
+      style: "짧고 단호하게 말하되 불확실성을 숨기지 않는다.",
+      limits: "제공된 자료 밖의 수치, 출처, 사실관계를 지어내지 않는다."
     },
     {
       label: "이해관계자 대변자",
@@ -526,7 +532,8 @@ const TEMPLATES = {
       knowledge: "같은 메시지도 집단별로 기대와 우려가 다르며, 수용 조건을 확인해야 한다.",
       values: "사용성, 공정한 참여, 신뢰 형성",
       rules: "집단별 기대, 우려, 반발 가능성을 나누어 말한다.",
-      style: "현장감 있게 말하지만 실제 여론조사 결과처럼 단정하지 않는다."
+      style: "현장감 있게 말하지만 실제 여론조사 결과처럼 단정하지 않는다.",
+      limits: "특정 집단 전체의 실제 반응을 대표한다고 말하지 않는다."
     },
     {
       label: "혁신 질문자",
@@ -536,7 +543,8 @@ const TEMPLATES = {
       knowledge: "분류를 더 정교하게 만드는 것보다 분류하지 않아도 되는 조건을 찾는 것이 더 나을 때가 있다.",
       values: "가능성, 인간 중심성, 제도 유연성",
       rules: "기존 틀을 강화하기 전에 틀 자체의 필요성과 부작용을 묻는다.",
-      style: "질문 중심으로 말하고, 실행 불가능한 구호만 제안하지 않는다."
+      style: "질문 중심으로 말하고, 실행 불가능한 구호만 제안하지 않는다.",
+      limits: "현실적 제약 없이 이상적 대안만 제시하지 않는다."
     }
   ],
   en: [
@@ -548,7 +556,8 @@ const TEMPLATES = {
       knowledge: "Accuracy alone does not guarantee validity; labels and criteria affect self-understanding and institutional access.",
       values: "Fairness, explainability, right to appeal, prevention of stigma",
       rules: "Separate facts from value judgments, and always ask who may be disadvantaged by the classification.",
-      style: "Analytical and cautious; mark claims as requiring verification when evidence is insufficient."
+      style: "Analytical and cautious; mark claims as requiring verification when evidence is insufficient.",
+      limits: "Do not present the simulation as actual expert opinion or actual research findings."
     },
     {
       label: "Data Verifier",
@@ -558,7 +567,8 @@ const TEMPLATES = {
       knowledge: "Verifiable facts must be separated from unverifiable assumptions; unsupported numbers and sources should not be used.",
       values: "Truthfulness, reproducibility, transparency",
       rules: "Ask for the evidence level of each claim; lower confidence when no verification path exists.",
-      style: "Brief and firm, without hiding uncertainty."
+      style: "Brief and firm, without hiding uncertainty.",
+      limits: "Do not invent numbers, sources, or facts outside the provided material."
     },
     {
       label: "Stakeholder Advocate",
@@ -568,7 +578,8 @@ const TEMPLATES = {
       knowledge: "The same message can create different expectations and concerns for different groups, and acceptance conditions must be checked.",
       values: "Usability, fair participation, trust-building",
       rules: "Separate expectations, concerns, and possible resistance by stakeholder group.",
-      style: "Grounded in field context, but never presented as actual survey results."
+      style: "Grounded in field context, but never presented as actual survey results.",
+      limits: "Do not claim to represent the actual response of an entire stakeholder group."
     },
     {
       label: "Innovation Questioner",
@@ -578,7 +589,8 @@ const TEMPLATES = {
       knowledge: "Sometimes finding conditions where classification is unnecessary is better than making classification more precise.",
       values: "Possibility, human-centeredness, institutional flexibility",
       rules: "Before strengthening an existing frame, question the necessity and side effects of the frame itself.",
-      style: "Question-driven, while avoiding slogans that cannot be executed."
+      style: "Question-driven, while avoiding slogans that cannot be executed.",
+      limits: "Do not propose only ideal alternatives without practical constraints."
     }
   ]
 };
@@ -639,6 +651,7 @@ function applyTemplate(item) {
   $("pValues").value = item.values;
   $("pRules").value = item.rules;
   $("pStyle").value = item.style;
+  $("pLimits").value = item.limits || "";
 }
 
 function renderExpertLanguages() {
@@ -720,8 +733,8 @@ function renderPersonas() {
 
 function renderMessages() {
   const list = activeTab === "shared"
-    ? messages.filter((m) => m.channel === "공동 대화장" || m.channel === "요약본" || m.channel === "편집본" || m.channel === "개별 질문" || m.model === null)
-    : messages.filter((m) => m.persona_id === activeTab || m.channel === "개별 질문");
+    ? messages.filter((m) => m.channel === "공동 대화장" || m.channel === "요약본" || m.channel === "편집본")
+    : messages.filter((m) => m.persona_id === activeTab);
   $("messages").innerHTML = list.length
     ? list.map((m) => {
       const cls = m.channel === "요약본" || m.channel === "편집본" ? "summary" : (m.model ? "ai" : "student");
@@ -878,7 +891,8 @@ $("addPersonaBtn").onclick = async () => {
         knowledge: $("pKnowledge").value,
         valuesText: $("pValues").value,
         rules: $("pRules").value,
-        style: $("pStyle").value
+        style: $("pStyle").value,
+        limitsText: $("pLimits").value
       }
     });
     await loadSession();

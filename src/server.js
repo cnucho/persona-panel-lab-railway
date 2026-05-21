@@ -124,14 +124,14 @@ const LANGUAGE_OPTIONS = {
 };
 
 const EXPORT_LABELS = {
-  ko: { meetingType: '회의 종류', topic: '주제', place: '장소/상황', startedAt: '시작 시각', personas: '퍼소나', role: '역할', expertise: '전문 영역과 경험', knowledge: '지식', values: '가치', rules: '판단 규칙', style: '말하기 방식', transcript: '회의록', time: '시각', model: '모델', input: '입력', output: '출력', credits: '차감' },
-  en: { meetingType: 'Meeting type', topic: 'Topic', place: 'Place/context', startedAt: 'Started at', personas: 'Personas', role: 'Role', expertise: 'Expertise and experience', knowledge: 'Knowledge', values: 'Values', rules: 'Judgment rules', style: 'Speaking style', transcript: 'Transcript', time: 'Time', model: 'Model', input: 'Input', output: 'Output', credits: 'Credits charged' },
-  de: { meetingType: 'Sitzungsart', topic: 'Thema', place: 'Ort/Kontext', startedAt: 'Beginn', personas: 'Personas', role: 'Rolle', expertise: 'Fachgebiet und Erfahrung', knowledge: 'Wissen', values: 'Werte', rules: 'Beurteilungsregeln', style: 'Sprechweise', transcript: 'Protokoll', time: 'Zeit', model: 'Modell', input: 'Eingabe', output: 'Ausgabe', credits: 'Abgezogene Credits' },
-  kk: { meetingType: 'Кездесу түрі', topic: 'Тақырып', place: 'Орын/жағдай', startedAt: 'Басталу уақыты', personas: 'Персоналар', role: 'Рөлі', expertise: 'Сараптама және тәжірибе', knowledge: 'Білім', values: 'Құндылықтар', rules: 'Бағалау ережелері', style: 'Сөйлеу мәнері', transcript: 'Хаттама', time: 'Уақыт', model: 'Модель', input: 'Кіріс', output: 'Шығыс', credits: 'Шегерілген кредиттер' },
-  am: { meetingType: 'የስብሰባ ዓይነት', topic: 'ርዕስ', place: 'ቦታ/አውድ', startedAt: 'የተጀመረበት ጊዜ', personas: 'ፐርሶናዎች', role: 'ሚና', expertise: 'ሙያ እና ተሞክሮ', knowledge: 'እውቀት', values: 'እሴቶች', rules: 'የፍርድ መመሪያዎች', style: 'የንግግር ዘይቤ', transcript: 'የስብሰባ መዝገብ', time: 'ጊዜ', model: 'ሞዴል', input: 'ግቤት', output: 'ውጤት', credits: 'የተቀነሱ ክሬዲቶች' },
-  ja: { meetingType: '会議種別', topic: 'テーマ', place: '場所/状況', startedAt: '開始時刻', personas: 'ペルソナ', role: '役割', expertise: '専門領域と経験', knowledge: '知識', values: '価値観', rules: '判断規則', style: '話し方', transcript: '議事録', time: '時刻', model: 'モデル', input: '入力', output: '出力', credits: '差し引きクレジット' },
-  zh: { meetingType: '会议类型', topic: '主题', place: '地点/情境', startedAt: '开始时间', personas: '画像', role: '角色', expertise: '专业领域与经验', knowledge: '知识', values: '价值观', rules: '判断规则', style: '表达方式', transcript: '会议记录', time: '时间', model: '模型', input: '输入', output: '输出', credits: '扣除积分' },
-  es: { meetingType: 'Tipo de reunión', topic: 'Tema', place: 'Lugar/contexto', startedAt: 'Inicio', personas: 'Personas', role: 'Rol', expertise: 'Experiencia y especialidad', knowledge: 'Conocimiento', values: 'Valores', rules: 'Reglas de juicio', style: 'Estilo de habla', transcript: 'Transcripción', time: 'Hora', model: 'Modelo', input: 'Entrada', output: 'Salida', credits: 'Créditos descontados' }
+  ko: { meetingType: '회의 종류', topic: '주제', place: '장소/상황', startedAt: '시작 시각', personas: '퍼소나', role: '역할', expertise: '전문 영역과 경험', knowledge: '지식', values: '가치', rules: '판단 규칙', style: '말하기 방식', limits: '한계', transcript: '회의록', time: '시각', model: '모델', input: '입력', output: '출력', credits: '차감' },
+  en: { meetingType: 'Meeting type', topic: 'Topic', place: 'Place/context', startedAt: 'Started at', personas: 'Personas', role: 'Role', expertise: 'Expertise and experience', knowledge: 'Knowledge', values: 'Values', rules: 'Judgment rules', style: 'Speaking style', limits: 'Limits', transcript: 'Transcript', time: 'Time', model: 'Model', input: 'Input', output: 'Output', credits: 'Credits charged' },
+  de: { meetingType: 'Sitzungsart', topic: 'Thema', place: 'Ort/Kontext', startedAt: 'Beginn', personas: 'Personas', role: 'Rolle', expertise: 'Fachgebiet und Erfahrung', knowledge: 'Wissen', values: 'Werte', rules: 'Beurteilungsregeln', style: 'Sprechweise', limits: 'Grenzen', transcript: 'Protokoll', time: 'Zeit', model: 'Modell', input: 'Eingabe', output: 'Ausgabe', credits: 'Abgezogene Credits' },
+  kk: { meetingType: 'Кездесу түрі', topic: 'Тақырып', place: 'Орын/жағдай', startedAt: 'Басталу уақыты', personas: 'Персоналар', role: 'Рөлі', expertise: 'Сараптама және тәжірибе', knowledge: 'Білім', values: 'Құндылықтар', rules: 'Бағалау ережелері', style: 'Сөйлеу мәнері', limits: 'Шектеулер', transcript: 'Хаттама', time: 'Уақыт', model: 'Модель', input: 'Кіріс', output: 'Шығыс', credits: 'Шегерілген кредиттер' },
+  am: { meetingType: 'የስብሰባ ዓይነት', topic: 'ርዕስ', place: 'ቦታ/አውድ', startedAt: 'የተጀመረበት ጊዜ', personas: 'ፐርሶናዎች', role: 'ሚና', expertise: 'ሙያ እና ተሞክሮ', knowledge: 'እውቀት', values: 'እሴቶች', rules: 'የፍርድ መመሪያዎች', style: 'የንግግር ዘይቤ', limits: 'ገደቦች', transcript: 'የስብሰባ መዝገብ', time: 'ጊዜ', model: 'ሞዴል', input: 'ግቤት', output: 'ውጤት', credits: 'የተቀነሱ ክሬዲቶች' },
+  ja: { meetingType: '会議種別', topic: 'テーマ', place: '場所/状況', startedAt: '開始時刻', personas: 'ペルソナ', role: '役割', expertise: '専門領域と経験', knowledge: '知識', values: '価値観', rules: '判断規則', style: '話し方', limits: '限界', transcript: '議事録', time: '時刻', model: 'モデル', input: '入力', output: '出力', credits: '差し引きクレジット' },
+  zh: { meetingType: '会议类型', topic: '主题', place: '地点/情境', startedAt: '开始时间', personas: '画像', role: '角色', expertise: '专业领域与经验', knowledge: '知识', values: '价值观', rules: '判断规则', style: '表达方式', limits: '限制', transcript: '会议记录', time: '时间', model: '模型', input: '输入', output: '输出', credits: '扣除积分' },
+  es: { meetingType: 'Tipo de reunión', topic: 'Tema', place: 'Lugar/contexto', startedAt: 'Inicio', personas: 'Personas', role: 'Rol', expertise: 'Experiencia y especialidad', knowledge: 'Conocimiento', values: 'Valores', rules: 'Reglas de juicio', style: 'Estilo de habla', limits: 'Límites', transcript: 'Transcripción', time: 'Hora', model: 'Modelo', input: 'Entrada', output: 'Salida', credits: 'Créditos descontados' }
 };
 
 function id(prefix) {
@@ -436,8 +436,10 @@ class PgStore {
         values_text text default '',
         rules text default '',
         style text default '',
+        limits_text text default '',
         created_at timestamptz not null default now()
       );
+      alter table personas add column if not exists limits_text text default '';
       create table if not exists messages (
         id text primary key,
         session_id text not null references sessions(id) on delete cascade,
@@ -506,9 +508,9 @@ class PgStore {
   }
   async createPersona(p) {
     const r = await this.pool.query(
-      `insert into personas(id, session_id, name, role, expertise, knowledge, values_text, rules, style)
-       values($1,$2,$3,$4,$5,$6,$7,$8,$9) returning *`,
-      [p.id, p.session_id, p.name, p.role, p.expertise, p.knowledge, p.values_text, p.rules, p.style]
+      `insert into personas(id, session_id, name, role, expertise, knowledge, values_text, rules, style, limits_text)
+       values($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) returning *`,
+      [p.id, p.session_id, p.name, p.role, p.expertise, p.knowledge, p.values_text, p.rules, p.style, p.limits_text]
     );
     return r.rows[0];
   }
@@ -545,7 +547,8 @@ function personaCard(p) {
     `사용할 지식: ${p.knowledge || '미기입'}`,
     `중시 가치: ${p.values_text || p.values || '미기입'}`,
     `판단 규칙: ${p.rules || '미기입'}`,
-    `말하기 방식과 한계: ${p.style || '미기입'}`
+    `말하기 방식: ${p.style || '미기입'}`,
+    `한계: ${p.limits_text || p.limits || '미기입'}`
   ].join('\n');
 }
 
@@ -675,7 +678,8 @@ ${personas.map((p) => `### ${p.name}
 - ${labels.knowledge}: ${p.knowledge || ''}
 - ${labels.values}: ${p.values_text || ''}
 - ${labels.rules}: ${p.rules || ''}
-- ${labels.style}: ${p.style || ''}`).join('\n\n')}
+- ${labels.style}: ${p.style || ''}
+- ${labels.limits}: ${p.limits_text || ''}`).join('\n\n')}
 
 ## ${labels.transcript}
 
@@ -939,7 +943,7 @@ app.post('/api/students', async (req, res, next) => {
     }
     if (!displayName) throw apiError(400, '이름 또는 별칭을 입력하세요.');
     if (cfg.requireAccessCode && !cfg.accessCodes.has(accessCode)) throw apiError(403, '유효하지 않은 수업 코드입니다.');
-    const seed = cfg.requireAccessCode ? accessCode : `${displayName}:${req.ip}`;
+    const seed = cfg.requireAccessCode ? `${accessCode}:${displayName}` : `${displayName}:${req.ip}`;
     const student = await store.upsertStudent({
       id: `stu_${hash(cfg.classroomSecret + ':' + seed)}`,
       display_name: displayName,
@@ -1004,6 +1008,7 @@ app.post('/api/sessions/:id/personas', async (req, res, next) => {
       values_text: String(req.body.valuesText || req.body.values || '').trim().slice(0, 1000),
       rules: String(req.body.rules || '').trim().slice(0, 1500),
       style: String(req.body.style || '').trim().slice(0, 500),
+      limits_text: String(req.body.limitsText || req.body.limits || '').trim().slice(0, 1000),
       created_at: nowIso()
     });
     res.json({ persona: p });
@@ -1033,7 +1038,7 @@ app.post('/api/sessions/:id/message', async (req, res, next) => {
     await store.createMessage({
       id: id('msg'),
       session_id: session.id,
-      persona_id: null,
+      persona_id: targetPersona?.id || null,
       speaker: student.display_name || '사용자',
       channel: mode === 'shared' ? '공동 대화장' : '개별 질문',
       content,
