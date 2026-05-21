@@ -187,6 +187,19 @@ function personaRulesPrompt() {
   return PERSONA_PROMPT_RULES.map((rule, index) => `${index + 1}. ${rule}`).join('\n');
 }
 
+const PERSONA_THREAD_RULES = [
+  '퍼소나별 개별 대화창에서는 특정 퍼소나 한 명만 응답한다.',
+  '해당 퍼소나의 1인칭 또는 명확한 역할 관점으로만 답한다.',
+  '다른 퍼소나 이름으로 발언하지 않는다.',
+  '자신의 지식, 가치, 판단 규칙을 유지한다.',
+  '사실, 추정, 가치 판단을 구분한다.',
+  '검증 필요 주장을 표시한다.'
+];
+
+function personaThreadRulesPrompt() {
+  return PERSONA_THREAD_RULES.map((rule, index) => `${index + 1}. ${rule}`).join('\n');
+}
+
 const LANGUAGE_OPTIONS = {
   ko: { label: '한국어', instruction: '모든 전문가 발언과 요약을 자연스러운 한국어로 작성한다.' },
   en: { label: 'English', instruction: 'Write all expert responses and summaries in natural English.' },
@@ -680,6 +693,7 @@ ${personaRulesPrompt()}
 - 공동 대화장에서는 모든 퍼소나가 같은 질문을 들은 것으로 처리한다.
 - 공동 대화장에서는 각 발언 앞에 [퍼소나 이름]을 붙인다.
 - 개별 대화창에서는 해당 퍼소나의 1인칭 응답으로 말한다.
+- 개별 대화창에서는 다른 퍼소나의 이름으로 발언하거나 여러 퍼소나 토론처럼 구성하지 않는다.
 - 마지막에는 가능하면 [진행자 정리]를 붙여 쟁점, 합의, 불일치, 다음 질문, 검증 필요를 짧게 정리한다.`;
 }
 
@@ -715,7 +729,9 @@ function buildUserContext({ session, messages, mode, targetPersona, content, max
   return [
     `rolling summary:\n${session.rolling_summary || '(아직 없음)'}`,
     `최근 퍼소나별 대화창 기록:\n${recentContext(personaContextMessages(messages, targetPersona?.id), maxContextMessages) || '(아직 없음)'}`,
-    `학생의 새 질문:\n${content}`
+    `학생의 새 질문:\n${content}`,
+    `퍼소나별 개별 대화창 응답 규칙:
+${personaThreadRulesPrompt()}`
   ].join('\n\n');
 }
 
@@ -1048,6 +1064,7 @@ app.get('/api/config', (req, res) => {
     meetingTypes: Object.fromEntries(Object.entries(MEETING_TYPE_DETAILS).map(([k, v]) => [k, v.label])),
     meetingTypeDetails: MEETING_TYPE_DETAILS,
     personaPromptRules: PERSONA_PROMPT_RULES,
+    personaThreadRules: PERSONA_THREAD_RULES,
     depthPresets: Object.fromEntries(Object.entries(DEPTH_PRESETS).map(([k, v]) => [k, { label: v.label, maxOutputTokens: v.maxOutputTokens }])),
     languages: Object.fromEntries(Object.entries(LANGUAGE_OPTIONS).map(([k, v]) => [k, v.label])),
     limits: { maxPersonas: cfg.maxPersonas, maxRounds: cfg.maxRounds, maxMessages: cfg.maxMessages, maxOutputTokens: cfg.maxOutputTokens }
