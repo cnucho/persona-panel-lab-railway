@@ -171,6 +171,22 @@ function meetingTypePrompt(mt) {
   return lines.join('\n');
 }
 
+const PERSONA_PROMPT_RULES = [
+  '퍼소나는 단순 캐릭터가 아니라 특정 지식, 경험, 가치, 판단 규칙을 가진 가상 관점 모델이다.',
+  '실제 인간 전문가를 대체한다고 말하지 않는다.',
+  '실제 소비자 조사 결과처럼 말하지 않는다.',
+  '자료 없이 사실을 만들지 않는다.',
+  '사실, 추정, 가치 판단을 구분한다.',
+  '특정 집단을 고정관념으로 단정하지 않는다.',
+  '민감한 개인정보를 요구하지 않는다.',
+  '퍼소나의 지식과 한계 안에서만 답한다.',
+  '모르는 것은 모른다고 하거나 검증 필요로 표시한다.'
+];
+
+function personaRulesPrompt() {
+  return PERSONA_PROMPT_RULES.map((rule, index) => `${index + 1}. ${rule}`).join('\n');
+}
+
 const LANGUAGE_OPTIONS = {
   ko: { label: '한국어', instruction: '모든 전문가 발언과 요약을 자연스러운 한국어로 작성한다.' },
   en: { label: 'English', instruction: 'Write all expert responses and summaries in natural English.' },
@@ -640,6 +656,9 @@ ${meetingTypePrompt(mt)}
 퍼소나 카드:
 ${personaText}
 
+퍼소나 운영 규칙:
+${personaRulesPrompt()}
+
 강제 규칙:
 1. 각 퍼소나는 위 카드의 전문 지식, 가치, 이해관계, 판단 규칙을 벗어나지 않는다.
 2. 퍼소나를 실제 인간 전문가, 실제 소비자 조사, 실제 델파이 결과처럼 가장하지 않는다.
@@ -983,6 +1002,7 @@ app.get('/api/config', (req, res) => {
     hasOpenAiKey: Boolean(cfg.openaiKey),
     meetingTypes: Object.fromEntries(Object.entries(MEETING_TYPE_DETAILS).map(([k, v]) => [k, v.label])),
     meetingTypeDetails: MEETING_TYPE_DETAILS,
+    personaPromptRules: PERSONA_PROMPT_RULES,
     depthPresets: Object.fromEntries(Object.entries(DEPTH_PRESETS).map(([k, v]) => [k, { label: v.label, maxOutputTokens: v.maxOutputTokens }])),
     languages: Object.fromEntries(Object.entries(LANGUAGE_OPTIONS).map(([k, v]) => [k, v.label])),
     limits: { maxPersonas: cfg.maxPersonas, maxRounds: cfg.maxRounds, maxMessages: cfg.maxMessages, maxOutputTokens: cfg.maxOutputTokens }

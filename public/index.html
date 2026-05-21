@@ -229,8 +229,9 @@
         <textarea id="pRules"></textarea>
         <label for="pStyle" data-i18n="personaStyle">말하기 방식과 한계</label>
         <input id="pStyle" />
-        <label for="pLimits" data-i18n="personaLimits">한계</label>
+        <label for="pLimits" data-i18n="personaLimits">한계 또는 금지할 말</label>
         <textarea id="pLimits"></textarea>
+        <div class="guide" id="personaRuleGuide"></div>
         <button id="addPersonaBtn" data-i18n="addPersona">퍼소나 추가</button>
         <div class="persona-list" id="personaList"></div>
       </section>
@@ -333,7 +334,8 @@ const SYSTEM = {
     personaValues: "중시 가치와 이해관계",
     personaRules: "판단 규칙",
     personaStyle: "말하기 방식",
-    personaLimits: "한계",
+    personaLimits: "한계 또는 금지할 말",
+    personaRuleGuide: "퍼소나는 단순 캐릭터가 아니라 특정 지식, 경험, 가치, 판단 규칙을 가진 가상 관점 모델입니다. 실제 전문가나 실제 조사 결과처럼 말하지 않고, 사실·추정·가치 판단을 구분하며, 모르는 것은 검증 필요로 표시합니다.",
     addPersona: "퍼소나 추가",
     sectionInterview: "4. 인터뷰",
     interviewHint: "공동 대화장에서는 패널처럼, 개별 탭에서는 1:1 심층면접처럼 질문합니다.",
@@ -431,7 +433,8 @@ const SYSTEM = {
     personaValues: "Values and Interests",
     personaRules: "Judgment Rules",
     personaStyle: "Speaking Style",
-    personaLimits: "Limits",
+    personaLimits: "Limits or Forbidden Claims",
+    personaRuleGuide: "A persona is not just a character. It is a virtual viewpoint model with specific knowledge, experience, values, and judgment rules. It must not speak as a real expert or real survey result; it separates facts, assumptions, and value judgments, and marks unknowns as requiring verification.",
     addPersona: "Add Persona",
     sectionInterview: "4. Interview",
     interviewHint: "Use the shared room like a panel, or a persona tab like a 1:1 interview.",
@@ -674,6 +677,7 @@ function applyDefaults(force = false) {
   $("displayName").placeholder = t("displayNamePlaceholder");
   $("messageInput").placeholder = t("messagePlaceholder");
   $("editorInstruction").placeholder = t("editorInstructionPlaceholder");
+  $("personaRuleGuide").textContent = t("personaRuleGuide");
 }
 
 function renderQuestionPresets() {
