@@ -168,6 +168,10 @@
     }
     .entry-details-body { margin-top: 10px; }
     .entry-compact { margin-top: 8px; }
+    .admin-list { display: grid; gap: 8px; margin-top: 10px; }
+    .admin-student { border: 1px solid var(--line); border-radius: 8px; padding: 10px; background: #fff; }
+    .admin-student strong { display: block; margin-bottom: 4px; }
+    .admin-session { margin-top: 6px; color: var(--muted); font-size: 12px; }
     @media (max-width: 940px) {
       header { grid-template-columns: 1fr; }
       main { grid-template-columns: 1fr; }
@@ -223,6 +227,19 @@
             <label for="accessCode"><span data-i18n="accessCode">수업 코드</span> <span class="hint" data-i18n="ifNeeded">필요한 경우</span></label>
             <input id="accessCode" placeholder="teacher code" />
             <button class="primary" id="enterBtn" data-i18n="enter">입장</button>
+          </div>
+        </details>
+      </section>
+
+      <section>
+        <details class="entry-details" id="adminDetails">
+          <summary data-i18n="adminOverview">관리자 현황</summary>
+          <div class="entry-details-body">
+            <div class="hint" data-i18n="adminHint">관리자는 학생 이메일, 이름, 크레딧, 회의 목록만 볼 수 있습니다. 비밀번호는 저장하거나 표시하지 않습니다.</div>
+            <label for="adminSecret" data-i18n="adminSecret">관리자 비밀키</label>
+            <input id="adminSecret" type="password" autocomplete="off" placeholder="CLASSROOM_SHARED_SECRET" />
+            <button class="secondary" id="adminLoadBtn" data-i18n="loadAdminOverview">현황 보기</button>
+            <div class="status" id="adminBox" data-i18n="adminBoxHint">관리자 계정으로 로그인했거나 비밀키가 있으면 조회할 수 있습니다.</div>
           </div>
         </details>
       </section>
@@ -358,6 +375,16 @@ const SYSTEM = {
     interfaceLanguage: "시스템 언어",
     expertLanguage: "전문가 응답 언어",
     reportLanguage: "보고서 언어",
+    adminOverview: "관리자 현황",
+    adminHint: "관리자는 학생 이메일, 이름, 크레딧, 회의 목록만 볼 수 있습니다. 비밀번호는 저장하거나 표시하지 않습니다.",
+    adminSecret: "관리자 비밀키",
+    loadAdminOverview: "현황 보기",
+    adminBoxHint: "관리자 계정으로 로그인했거나 비밀키가 있으면 조회할 수 있습니다.",
+    adminNoStudents: "아직 학생 기록이 없습니다.",
+    adminSessions: "회의",
+    adminMessages: "메시지",
+    adminLastSession: "최근 회의",
+    adminPasswordNotice: "비밀번호는 저장하거나 표시하지 않습니다.",
     displayName: "이름 또는 별칭",
     accessCode: "수업 코드",
     ifNeeded: "필요한 경우",
@@ -473,6 +500,16 @@ const SYSTEM = {
     interfaceLanguage: "System Language",
     expertLanguage: "Expert Response Language",
     reportLanguage: "Report Language",
+    adminOverview: "Admin Overview",
+    adminHint: "Admins can view only student email, name, credits, and session lists. Passwords are never stored or displayed.",
+    adminSecret: "Admin Secret",
+    loadAdminOverview: "Load Overview",
+    adminBoxHint: "Use an admin login session or the admin secret to view this.",
+    adminNoStudents: "No student records yet.",
+    adminSessions: "Sessions",
+    adminMessages: "Messages",
+    adminLastSession: "Last session",
+    adminPasswordNotice: "Passwords are never stored or displayed.",
     displayName: "Name or Alias",
     accessCode: "Class Code",
     ifNeeded: "if needed",
@@ -880,10 +917,11 @@ function saveState() {
 }
 
 async function api(path, opts = {}) {
+  const { headers = {}, ...rest } = opts;
   const res = await fetch(path, {
-    headers: { "Content-Type": "application/json" },
-    ...opts,
-    body: opts.body ? JSON.stringify(opts.body) : undefined
+    ...rest,
+    headers: { "Content-Type": "application/json", ...headers },
+    body: rest.body ? JSON.stringify(rest.body) : undefined
   });
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(data.error || t("requestFailed"));
@@ -928,6 +966,29 @@ function showUsageResult(usage, remainingCredits, label = t("messageCharged")) {
     `${t("creditsDeducted")}: ${credits.toLocaleString()} credits`,
     `${t("purchaseBasis")}: ${templateText("purchaseBasisValue", { krw: purchaseKrwPerCredit.toLocaleString() })}`
   ].join("<br>");
+}
+
+function renderAdminOverview(students = []) {
+  if (!students.length) {
+    $("adminBox").innerHTML = `${escapeHtml(t("adminNoStudents"))}<br>${escapeHtml(t("adminPasswordNotice"))}`;
+    return;
+  }
+  $("adminBox").innerHTML = [
+    `<div class="hint">${escapeHtml(t("adminPasswordNotice"))}</div>`,
+    `<div class="admin-list">${students.map((s) => {
+      const remaining = Number(s.remaining_credits ?? Math.max(0, Number(s.credit_limit || 0) - Number(s.credits_used || 0)));
+      const sessions = (s.sessions || []).slice(0, 3).map((session) =>
+        `<div class="admin-session">${escapeHtml(session.title || session.id)} · ${escapeHtml(session.meeting_type || "")} · ${escapeHtml(session.created_at || "")}</div>`
+      ).join("");
+      return `<div class="admin-student">
+        <strong>${escapeHtml(s.display_name || s.email || s.id)}</strong>
+        <div class="hint">${escapeHtml(s.email || "no email")} · ${escapeHtml(s.access_code || "no class code")}</div>
+        <div>${t("remainingCredits")}: ${remaining.toLocaleString()} credits / ${Number(s.credit_limit || 0).toLocaleString()} credits</div>
+        <div>${t("used")}: ${Number(s.credits_used || 0).toLocaleString()} credits · ${t("adminSessions")}: ${Number(s.session_count || 0).toLocaleString()} · ${t("adminMessages")}: ${Number(s.message_count || 0).toLocaleString()}</div>
+        ${sessions}
+      </div>`;
+    }).join("")}</div>`
+  ].join("");
 }
 
 function renderPersonas() {
@@ -1045,6 +1106,22 @@ $("templateSelect").onchange = () => {
 };
 
 $("meetingType").onchange = renderMeetingGuide;
+
+$("adminLoadBtn").onclick = async () => {
+  try {
+    $("adminLoadBtn").disabled = true;
+    $("adminBox").textContent = t("loadingConfig");
+    const secret = $("adminSecret").value.trim();
+    const data = await api(`/api/admin/overview?sessionId=${encodeURIComponent(authSessionId || "")}`, {
+      headers: secret ? { "x-admin-secret": secret } : {}
+    });
+    renderAdminOverview(data.students || []);
+  } catch (e) {
+    $("adminBox").textContent = e.message;
+  } finally {
+    $("adminLoadBtn").disabled = false;
+  }
+};
 
 $("questionPreset").onchange = (e) => {
   if (e.target.value) $("messageInput").value = e.target.value;

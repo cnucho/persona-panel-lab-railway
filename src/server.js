@@ -38,6 +38,7 @@ const cfg = {
   appVisibility: process.env.APP_VISIBILITY || 'public',
   appUsageTier: process.env.APP_USAGE_TIER || process.env.APP_USAGE_CLASS || 'standard',
   appAllowedEmails: process.env.APP_ALLOWED_EMAILS || process.env.APP_PRIVATE_ALLOWED_EMAILS || '',
+  adminEmails: new Set(String(process.env.ADMIN_EMAILS || 'skcho99@gmail.com').split(/[,;\s]+/).map((s) => String(s || '').trim().toLowerCase()).filter(Boolean)),
   appCreditPolicies: process.env.APP_CREDIT_POLICIES || process.env.APP_CREDIT_POLICY || 'consumerinsight.kr=0,*=10',
   appCreditMarkup: Number(process.env.APP_CREDIT_MARKUP || 10),
   starterActualCostKrw: Number(process.env.STARTER_ACTUAL_COST_KRW || 3000)
@@ -354,6 +355,23 @@ async function centralWalletForSession(sessionId) {
   return data.wallet || data.budget || null;
 }
 
+async function requireAdminAccess(req) {
+  const secret = String(req.headers['x-admin-secret'] || req.query.adminSecret || '').trim();
+  if (secret && crypto.timingSafeEqual(Buffer.from(hash(secret)), Buffer.from(hash(cfg.classroomSecret)))) {
+    return { method: 'secret' };
+  }
+  if (centralAuthEnabled()) {
+    try {
+      const auth = await centralSessionForRequest(req, {});
+      const email = normalizeEmail(auth.session.email);
+      if (cfg.adminEmails.has(email)) return { method: 'central', email };
+    } catch (e) {
+      if (e.status !== 401) throw e;
+    }
+  }
+  throw apiError(403, 'admin_forbidden');
+}
+
 function studentFromCentralSession({ sessionId, session, budget = null, wallet = null, displayName = '', accessCode = '' }) {
   const email = normalizeEmail(session.email);
   const source = wallet || budget || {};
@@ -539,6 +557,40 @@ class MemoryStore {
   async countMessages(sessionId) {
     return [...this.messages.values()].filter((m) => m.session_id === sessionId).length;
   }
+  async adminOverview() {
+    const sessions = [...this.sessions.values()];
+    const messages = [...this.messages.values()];
+    const students = [...this.students.values()]
+      .sort((a, b) => String(b.updated_at || b.created_at || '').localeCompare(String(a.updated_at || a.created_at || '')))
+      .map((student) => {
+        const studentSessions = sessions
+          .filter((session) => session.student_id === student.id)
+          .sort((a, b) => String(b.created_at || '').localeCompare(String(a.created_at || '')));
+        const sessionIds = new Set(studentSessions.map((session) => session.id));
+        const studentMessages = messages.filter((message) => sessionIds.has(message.session_id));
+        return {
+          id: student.id,
+          display_name: student.display_name,
+          email: student.email || '',
+          access_code: student.access_code || '',
+          credit_limit: Number(student.credit_limit || 0),
+          credits_used: Number(student.credits_used || 0),
+          remaining_credits: Math.max(0, Number(student.credit_limit || 0) - Number(student.credits_used || 0)),
+          session_count: studentSessions.length,
+          message_count: studentMessages.length,
+          last_session_at: studentSessions[0]?.created_at || '',
+          sessions: studentSessions.slice(0, 20).map((session) => ({
+            id: session.id,
+            title: session.title,
+            topic: session.topic,
+            meeting_type: session.meeting_type,
+            created_at: session.created_at,
+            round_count: Number(session.round_count || 0)
+          }))
+        };
+      });
+    return { students };
+  }
 }
 
 class PgStore {
@@ -683,6 +735,48 @@ class PgStore {
   async countMessages(sessionId) {
     const r = await this.pool.query('select count(*)::int as count from messages where session_id=$1', [sessionId]);
     return r.rows[0].count;
+  }
+  async adminOverview() {
+    const r = await this.pool.query(`
+      select
+        st.id,
+        st.display_name,
+        coalesce(st.email, '') as email,
+        coalesce(st.access_code, '') as access_code,
+        st.credit_limit,
+        st.credits_used,
+        greatest(0, st.credit_limit - st.credits_used) as remaining_credits,
+        st.created_at,
+        st.updated_at,
+        count(distinct se.id)::int as session_count,
+        count(m.id)::int as message_count,
+        max(se.created_at) as last_session_at
+      from students st
+      left join sessions se on se.student_id = st.id
+      left join messages m on m.session_id = se.id
+      group by st.id
+      order by st.updated_at desc, st.created_at desc
+    `);
+    const sessions = await this.pool.query(`
+      select id, student_id, title, topic, meeting_type, created_at, round_count
+      from sessions
+      order by created_at desc
+    `);
+    const byStudent = new Map();
+    for (const session of sessions.rows) {
+      const list = byStudent.get(session.student_id) || [];
+      if (list.length < 20) list.push(session);
+      byStudent.set(session.student_id, list);
+    }
+    return {
+      students: r.rows.map((student) => ({
+        ...student,
+        credit_limit: Number(student.credit_limit || 0),
+        credits_used: Number(student.credits_used || 0),
+        remaining_credits: Number(student.remaining_credits || 0),
+        sessions: byStudent.get(student.id) || []
+      }))
+    };
   }
 }
 
@@ -1188,6 +1282,19 @@ app.get('/api/config', (req, res) => {
     languages: Object.fromEntries(Object.entries(LANGUAGE_OPTIONS).map(([k, v]) => [k, v.label])),
     limits: { maxPersonas: cfg.maxPersonas, maxRounds: cfg.maxRounds, maxMessages: cfg.maxMessages, maxOutputTokens: cfg.maxOutputTokens }
   });
+});
+
+app.get('/api/admin/overview', async (req, res, next) => {
+  try {
+    const admin = await requireAdminAccess(req);
+    const overview = await store.adminOverview();
+    res.json({
+      ok: true,
+      admin,
+      students: overview.students,
+      note: 'Passwords are never stored or returned.'
+    });
+  } catch (e) { next(e); }
 });
 
 app.post('/api/students', async (req, res, next) => {
