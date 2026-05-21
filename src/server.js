@@ -14,12 +14,13 @@ const __dirname = path.dirname(__filename);
 
 const cfg = {
   port: Number(process.env.PORT || 3000),
-  defaultModel: process.env.DEFAULT_MODEL || 'gpt-4.1-mini',
-  summaryModel: process.env.SUMMARY_MODEL || 'gpt-4.1-nano',
-  editorModel: process.env.EDITOR_MODEL || process.env.SUMMARY_MODEL || 'gpt-4.1-nano',
-  premiumModel: process.env.PREMIUM_MODEL || process.env.DEFAULT_MODEL || 'gpt-4.1',
+  defaultModel: process.env.DEFAULT_MODEL || 'gpt-5.4-mini',
+  summaryModel: process.env.SUMMARY_MODEL || 'gpt-5.4-nano',
+  editorModel: process.env.EDITOR_MODEL || process.env.SUMMARY_MODEL || 'gpt-5.4-nano',
+  premiumModel: process.env.PREMIUM_MODEL || process.env.DEFAULT_MODEL || 'gpt-5.4-mini',
   creditBudget: Number(process.env.CREDIT_BUDGET_PER_USER || 30000),
   krwPerCredit: Number(process.env.KRW_PER_CREDIT || 0.1),
+  costUsdToCredits: Number(process.env.COST_USD_TO_CREDITS || process.env.CREDITS_PER_USD_COST || 14000),
   purchaseKrwPerCredit: Number(process.env.CREDIT_PURCHASE_KRW_PER_CREDIT || 1),
   usdToKrw: Number(process.env.USD_TO_KRW || 1400),
   maxPersonas: Number(process.env.MAX_PERSONAS || 5),
@@ -54,7 +55,9 @@ const MODEL_PRICES = {
   'gpt-4o-mini': { input: 0.15, output: 0.6 },
   'gpt-5': { input: 1.25, output: 10.0 },
   'gpt-5-mini': { input: 0.25, output: 2.0 },
-  'gpt-5-nano': { input: 0.05, output: 0.4 }
+  'gpt-5-nano': { input: 0.05, output: 0.4 },
+  'gpt-5.4-mini': { input: 0.75, output: 4.50 },
+  'gpt-5.4-nano': { input: 0.20, output: 1.25 }
 };
 
 const DEPTH_PRESETS = {
@@ -295,7 +298,7 @@ function costToCredits({ model, inputTokens, outputTokens }) {
   const p = priceFor(model);
   const usd = (inputTokens / 1_000_000) * p.input + (outputTokens / 1_000_000) * p.output;
   const krw = usd * cfg.usdToKrw;
-  const credits = Math.max(1, Math.ceil(krw / cfg.krwPerCredit));
+  const credits = Math.max(1, Math.ceil(usd * cfg.costUsdToCredits));
   return { usd, krw, credits };
 }
 
@@ -638,6 +641,12 @@ function checkOwner(session, studentId) {
   if (session.student_id !== studentId) throw apiError(403, '세션 접근 권한이 없습니다.');
 }
 
+function requireStudentId(value) {
+  const studentId = String(value || '').trim();
+  if (!studentId) throw apiError(400, 'studentId가 필요합니다.');
+  return studentId;
+}
+
 function xmlEscape(value) {
   return String(value ?? '')
     .replace(/&/g, '&amp;')
@@ -885,6 +894,10 @@ app.get('/api/health', (req, res) => {
   res.json({ ok: true, time: nowIso(), hasOpenAiKey: Boolean(cfg.openaiKey), defaultModel: cfg.defaultModel, centralAuthConfigured: centralAuthEnabled() });
 });
 
+app.get('/health', (req, res) => {
+  res.json({ ok: true, time: nowIso(), hasOpenAiKey: Boolean(cfg.openaiKey), defaultModel: cfg.defaultModel, centralAuthConfigured: centralAuthEnabled() });
+});
+
 app.get('/api/config', (req, res) => {
   res.json({
     appId: cfg.appId,
@@ -894,6 +907,9 @@ app.get('/api/config', (req, res) => {
     editorModel: cfg.editorModel,
     premiumModel: cfg.premiumModel,
     creditBudget: cfg.creditBudget,
+    costCurrency: 'USD',
+    costUsdToCredits: cfg.costUsdToCredits,
+    creditDeductionFormula: 'cost_usd * cost_usd_to_credits',
     actualKrwPerCredit: cfg.krwPerCredit,
     krwPerCredit: cfg.krwPerCredit,
     purchaseKrwPerCredit: cfg.purchaseKrwPerCredit,
@@ -943,7 +959,9 @@ app.post('/api/students', async (req, res, next) => {
     }
     if (!displayName) throw apiError(400, '이름 또는 별칭을 입력하세요.');
     if (cfg.requireAccessCode && !cfg.accessCodes.has(accessCode)) throw apiError(403, '유효하지 않은 수업 코드입니다.');
-    const seed = cfg.requireAccessCode ? `${accessCode}:${displayName}` : `${displayName}:${req.ip}`;
+    const clientId = String(req.body.clientId || '').trim().replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 80);
+    const studentSeed = clientId || `${displayName}:${req.ip}`;
+    const seed = cfg.requireAccessCode ? `${accessCode}:${displayName}:${studentSeed}` : `${displayName}:${studentSeed}`;
     const student = await store.upsertStudent({
       id: `stu_${hash(cfg.classroomSecret + ':' + seed)}`,
       display_name: displayName,
@@ -989,7 +1007,10 @@ app.post('/api/sessions', async (req, res, next) => {
 
 app.get('/api/sessions/:id', async (req, res, next) => {
   try {
-    res.json(await loadSessionBundle(req.params.id));
+    const studentId = requireStudentId(req.query.studentId);
+    const bundle = await loadSessionBundle(req.params.id);
+    checkOwner(bundle.session, studentId);
+    res.json(bundle);
   } catch (e) { next(e); }
 });
 
@@ -1196,7 +1217,9 @@ ${source}`;
 
 app.get('/api/sessions/:id/export.md', async (req, res, next) => {
   try {
+    const studentId = requireStudentId(req.query.studentId);
     const { session, personas, messages } = await loadSessionBundle(req.params.id);
+    checkOwner(session, studentId);
     const md = exportMarkdown(session, personas, messages, req.query.language);
     sendDownload(res, {
       filename: safeFileName(session.title, 'md'),
@@ -1208,7 +1231,9 @@ app.get('/api/sessions/:id/export.md', async (req, res, next) => {
 
 app.get('/api/sessions/:id/export.docx', async (req, res, next) => {
   try {
+    const studentId = requireStudentId(req.query.studentId);
     const { session, personas, messages } = await loadSessionBundle(req.params.id);
+    checkOwner(session, studentId);
     const md = exportMarkdown(session, personas, messages, req.query.language);
     const body = await buildDocxBuffer(md);
     sendDownload(res, {
@@ -1221,7 +1246,9 @@ app.get('/api/sessions/:id/export.docx', async (req, res, next) => {
 
 app.get('/api/sessions/:id/export.hwpx', async (req, res, next) => {
   try {
+    const studentId = requireStudentId(req.query.studentId);
     const { session, personas, messages } = await loadSessionBundle(req.params.id);
+    checkOwner(session, studentId);
     const md = exportMarkdown(session, personas, messages, req.query.language);
     const body = await buildHwpxBuffer(md);
     sendDownload(res, {

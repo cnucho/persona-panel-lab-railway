@@ -283,6 +283,11 @@ let activeTab = "shared";
 let uiLanguage = localStorage.getItem("pp_ui_language") || "ko";
 let expertLanguage = localStorage.getItem("pp_expert_language") || "ko";
 let reportLanguage = localStorage.getItem("pp_report_language") || uiLanguage;
+let clientId = localStorage.getItem("pp_client_id");
+if (!clientId) {
+  clientId = crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+  localStorage.setItem("pp_client_id", clientId);
+}
 
 const $ = (id) => document.getElementById(id);
 
@@ -750,8 +755,8 @@ function renderMessages() {
 }
 
 async function loadSession() {
-  if (!session) return;
-  const data = await api(`/api/sessions/${session.id}`);
+  if (!session || !student) return;
+  const data = await api(`/api/sessions/${session.id}?studentId=${encodeURIComponent(student.id)}`);
   session = data.session;
   personas = data.personas || [];
   messages = data.messages || [];
@@ -840,7 +845,7 @@ $("enterBtn").onclick = async () => {
     }
     const data = await api("/api/students", {
       method: "POST",
-      body: { displayName: $("displayName").value, accessCode: $("accessCode").value, sessionId: authSessionId, sharedSessionId: authSessionId }
+      body: { displayName: $("displayName").value, accessCode: $("accessCode").value, clientId, sessionId: authSessionId, sharedSessionId: authSessionId }
     });
     student = data.student;
     if (data.session) authSession = data.session;
@@ -984,7 +989,7 @@ function downloadExport(ext) {
     setStatus(t("startToDownload"), "danger");
     return;
   }
-  window.location.href = `/api/sessions/${session.id}/export.${ext}?language=${encodeURIComponent(reportLanguage)}`;
+  window.location.href = `/api/sessions/${session.id}/export.${ext}?studentId=${encodeURIComponent(student.id)}&language=${encodeURIComponent(reportLanguage)}`;
 }
 
 $("exportMdBtn").onclick = () => downloadExport("md");
