@@ -281,6 +281,7 @@
         </div>
       </div>
       <div class="status" id="usageBox" data-i18n="usageHint">사용량과 예상 비용이 여기에 표시됩니다.</div>
+      <div class="status warn" id="contextHint"></div>
     </section>
   </main>
 
@@ -381,6 +382,7 @@ const SYSTEM = {
     charged: "차감",
     summaryCharged: "요약 차감",
     editorCharged: "편집 차감",
+    contextCompressionHint: "회의가 길어지고 있습니다. 요약본 생성을 눌러 맥락을 압축하세요.",
     approx: "약",
     inputTokens: "입력",
     outputTokens: "출력",
@@ -480,6 +482,7 @@ const SYSTEM = {
     charged: "Charged",
     summaryCharged: "Summary charged",
     editorCharged: "Editing charged",
+    contextCompressionHint: "This meeting is getting long. Click Create Summary to compress the context.",
     approx: "approx.",
     inputTokens: "input",
     outputTokens: "output",
@@ -828,6 +831,13 @@ function renderMessages() {
   const persona = personas.find((p) => p.id === activeTab);
   $("inputLabel").textContent = activeTab === "shared" ? t("sharedInput") : `${persona?.name || "Persona"}: ${t("individualQuestion")}`;
   $("messages").scrollTop = $("messages").scrollHeight;
+  renderContextHint();
+}
+
+function renderContextHint() {
+  const roundCount = Number(session?.round_count || 0);
+  const warnAt = Math.max(3, Math.floor((config?.limits?.maxRounds || 8) * 0.6));
+  $("contextHint").textContent = roundCount >= warnAt ? t("contextCompressionHint") : "";
 }
 
 async function loadSession() {
