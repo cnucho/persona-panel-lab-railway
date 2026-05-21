@@ -115,6 +115,62 @@ const MEETING_TYPES = {
   }
 };
 
+const MEETING_TYPE_DETAILS = {
+  expert_panel: {
+    label: '전문가 좌담회',
+    purpose: '여러 퍼소나가 같은 주제에 대해 각자의 지식과 관점으로 의견을 낸다.',
+    outputs: ['퍼소나별 핵심 의견', '합의점', '불일치점', '검증 필요 주장', '회의록 기록용 결론']
+  },
+  expert_interview: {
+    label: '전문가 면접',
+    purpose: '한 퍼소나를 깊게 면접한다.',
+    outputs: ['퍼소나의 핵심 답변', '사용한 지식', '판단 기준', '한계', '추가 질문']
+  },
+  delphi_lite: {
+    label: '델파이 라이트',
+    purpose: '여러 퍼소나가 독립 평가자처럼 의견을 내고 차이를 비교한다.',
+    outputs: ['퍼소나별 판단', '점수 또는 등급', '불일치 이유', '합의 가능 조건', '최종 유보 사항'],
+    caution: '실제 델파이 조사라고 표현하지 말고 반드시 “델파이 라이트 시뮬레이션”이라고 표시한다.'
+  },
+  focus_group: {
+    label: '포커스 집단 인터뷰',
+    purpose: '가상 이해관계자 또는 소비자 집단의 반응을 탐색한다.',
+    outputs: ['첫인상', '공통 반응', '갈리는 반응', '불신 요인', '개선 제안'],
+    caution: '실제 소비자 조사 결과처럼 표현하지 않는다.'
+  },
+  stakeholder_test: {
+    label: '이해관계자 반응 테스트',
+    purpose: '정책, 홍보안, 학교 규칙, AI 도입안이 각 이해관계자에게 어떻게 받아들여질지 탐색한다.',
+    outputs: ['이해관계자별 반응', '이익', '우려', '갈등 지점', '수용 조건', '설명 방식 개선안']
+  },
+  ad_reaction: {
+    label: '광고·소비자 반응 테스트',
+    purpose: '광고 문구, 캠페인 메시지, 홍보 글이 어떤 반응을 만들지 탐색한다.',
+    outputs: ['매력 요소', '거부감', '신뢰감', '기억에 남는 표현', '오해 가능성', '수정 제안'],
+    caution: '실제 시장조사 결과처럼 표현하지 않는다.'
+  },
+  classification_audit: {
+    label: '분류 타당성 감사',
+    purpose: 'AI 또는 사람이 만든 분류안이 사회적으로 타당한지 검토한다.',
+    outputs: ['정확도 검토', '신뢰도 검토', '진실성 검토', '타당도 검토', '사회적 정합성 검토', '이의제기 가능성 검토', '검증 가능한 주장', '검증 불가능한 추정', '가치 판단', '수정된 분류안']
+  }
+};
+
+function meetingTypeDetails(key) {
+  return MEETING_TYPE_DETAILS[key] || MEETING_TYPE_DETAILS.expert_panel;
+}
+
+function meetingTypePrompt(mt) {
+  const lines = [
+    `회의 종류: ${mt.label}`,
+    `목적: ${mt.purpose}`,
+    '출력 항목:',
+    ...mt.outputs.map((item) => `- ${item}`)
+  ];
+  if (mt.caution) lines.push(`주의: ${mt.caution}`);
+  return lines.join('\n');
+}
+
 const LANGUAGE_OPTIONS = {
   ko: { label: '한국어', instruction: '모든 전문가 발언과 요약을 자연스러운 한국어로 작성한다.' },
   en: { label: 'English', instruction: 'Write all expert responses and summaries in natural English.' },
@@ -560,7 +616,7 @@ function recentContext(messages, maxMessages) {
 }
 
 function buildSystemPrompt(session, personas, mode, targetPersona, depthKey, expertLanguage) {
-  const mt = MEETING_TYPES[session.meeting_type] || MEETING_TYPES.expert_panel;
+  const mt = meetingTypeDetails(session.meeting_type);
   const preset = DEPTH_PRESETS[depthKey] || DEPTH_PRESETS.balanced;
   const personaText = mode === 'persona' && targetPersona
     ? personaCard(targetPersona)
@@ -573,8 +629,8 @@ function buildSystemPrompt(session, personas, mode, targetPersona, depthKey, exp
 - 그럴듯한 정답을 꾸미기보다, 특정 관점에서 무엇을 볼 수 있고 무엇은 검증해야 하는지 드러낸다.
 
 회의 정보:
-- 회의 종류: ${mt.label}
-- 운영 형식: ${mt.format}
+- 운영 형식:
+${meetingTypePrompt(mt)}
 - 회의 주제: ${session.topic}
 - 장소/상황: ${session.place || '온라인'}
 - 시작 시각: ${session.started_at || session.created_at}
@@ -674,7 +730,7 @@ function exportMarkdown(session, personas, messages, languageKey = 'ko') {
   const labels = EXPORT_LABELS[normalizedLanguage(languageKey)] || EXPORT_LABELS.ko;
   return `# ${session.title}
 
-- ${labels.meetingType}: ${(MEETING_TYPES[session.meeting_type] || {}).label}
+- ${labels.meetingType}: ${meetingTypeDetails(session.meeting_type).label}
 - ${labels.topic}: ${session.topic}
 - ${labels.place}: ${session.place || '온라인'}
 - ${labels.startedAt}: ${session.started_at || session.created_at}
@@ -925,7 +981,8 @@ app.get('/api/config', (req, res) => {
     starterActualCostKrw: cfg.starterActualCostKrw,
     appUrl: cfg.appUrl,
     hasOpenAiKey: Boolean(cfg.openaiKey),
-    meetingTypes: Object.fromEntries(Object.entries(MEETING_TYPES).map(([k, v]) => [k, v.label])),
+    meetingTypes: Object.fromEntries(Object.entries(MEETING_TYPE_DETAILS).map(([k, v]) => [k, v.label])),
+    meetingTypeDetails: MEETING_TYPE_DETAILS,
     depthPresets: Object.fromEntries(Object.entries(DEPTH_PRESETS).map(([k, v]) => [k, { label: v.label, maxOutputTokens: v.maxOutputTokens }])),
     languages: Object.fromEntries(Object.entries(LANGUAGE_OPTIONS).map(([k, v]) => [k, v.label])),
     limits: { maxPersonas: cfg.maxPersonas, maxRounds: cfg.maxRounds, maxMessages: cfg.maxMessages, maxOutputTokens: cfg.maxOutputTokens }
@@ -987,7 +1044,7 @@ app.post('/api/sessions', async (req, res, next) => {
   try {
     const student = await store.getStudent(req.body.studentId);
     if (!student) throw apiError(400, '학생 세션을 먼저 만드세요.');
-    const meetingType = MEETING_TYPES[req.body.meetingType] ? req.body.meetingType : 'expert_panel';
+    const meetingType = MEETING_TYPE_DETAILS[req.body.meetingType] ? req.body.meetingType : 'expert_panel';
     const session = await store.createSession({
       id: id('ses'),
       student_id: student.id,
@@ -1001,7 +1058,7 @@ app.post('/api/sessions', async (req, res, next) => {
       created_at: nowIso(),
       updated_at: nowIso()
     });
-    res.json({ session, meetingType: MEETING_TYPES[meetingType] });
+    res.json({ session, meetingType: meetingTypeDetails(meetingType) });
   } catch (e) { next(e); }
 });
 
@@ -1125,7 +1182,7 @@ app.post('/api/sessions/:id/summary', async (req, res, next) => {
     const reportLanguage = normalizedLanguage(req.body.reportLanguage || req.body.expertLanguage);
     const system = `너는 전문가 퍼소나 인터뷰의 회의록 요약자다. 교육용 제출물로 쓸 수 있게 사실, 추정, 가치 판단, 이해관계, 합의, 불일치, 검증 필요 주장, 다음 질문을 분리한다. 퍼소나가 실제 전문가라는 식으로 과장하지 않는다. ${languageInstruction(reportLanguage)}`;
     const user = `회의 제목: ${session.title}
-회의 종류: ${(MEETING_TYPES[session.meeting_type] || {}).label}
+회의 종류: ${meetingTypeDetails(session.meeting_type).label}
 주제: ${session.topic}
 
 퍼소나:

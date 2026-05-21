@@ -125,6 +125,17 @@
     .usage { margin-top: 8px; color: var(--muted); font-size: 12px; }
     .toolbar { display: grid; grid-template-columns: 1fr auto; gap: 10px; align-items: end; margin-top: 10px; }
     .compact { font-size: 12px; color: #c9d3e4; }
+    .guide {
+      margin-top: 8px;
+      padding: 10px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #f8fafc;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.55;
+    }
+    .guide strong { color: var(--text); }
     @media (max-width: 940px) {
       header { grid-template-columns: 1fr; }
       main { grid-template-columns: 1fr; }
@@ -189,6 +200,7 @@
           <div>
             <label for="meetingType" data-i18n="meetingType">회의 종류</label>
             <select id="meetingType"></select>
+            <div class="guide" id="meetingGuide"></div>
           </div>
           <div>
             <label for="place" data-i18n="place">상황</label>
@@ -385,7 +397,10 @@ const SYSTEM = {
     presetEvidence: "근거 분해하기",
     presetEvidenceValue: "이 주장 중 사실, 추정, 가치 판단, 검증 필요 항목을 나눠 주세요.",
     presetConflict: "관점 충돌 만들기",
-    presetConflictValue: "다른 퍼소나의 관점에 동의하기 어려운 지점과 그 이유를 말해 주세요."
+    presetConflictValue: "다른 퍼소나의 관점에 동의하기 어려운 지점과 그 이유를 말해 주세요.",
+    purpose: "목적",
+    outputItems: "출력",
+    caution: "주의"
   },
   en: {
     appTitle: "Expert Persona Interview Lab",
@@ -480,28 +495,67 @@ const SYSTEM = {
     presetEvidence: "Separate evidence",
     presetEvidenceValue: "Separate facts, assumptions, value judgments, and claims that require verification.",
     presetConflict: "Create viewpoint conflict",
-    presetConflictValue: "What do you find difficult to agree with in another persona's perspective, and why?"
+    presetConflictValue: "What do you find difficult to agree with in another persona's perspective, and why?",
+    purpose: "Purpose",
+    outputItems: "Output",
+    caution: "Caution"
   }
 };
 
 const MEETING_LABELS = {
   ko: {
     expert_panel: "전문가 좌담회",
-    expert_interview: "전문가 심층면접",
+    expert_interview: "전문가 면접",
     delphi_lite: "델파이 라이트",
-    focus_group: "포커스 그룹",
+    focus_group: "포커스 집단 인터뷰",
     stakeholder_test: "이해관계자 반응 테스트",
-    ad_reaction: "광고/서비스 반응 테스트",
+    ad_reaction: "광고·소비자 반응 테스트",
     classification_audit: "분류 타당성 감사"
   },
   en: {
     expert_panel: "Expert Panel",
     expert_interview: "Expert Interview",
     delphi_lite: "Delphi Lite",
-    focus_group: "Focus Group",
+    focus_group: "Focus Group Interview",
     stakeholder_test: "Stakeholder Reaction Test",
-    ad_reaction: "Ad/Service Reaction Test",
+    ad_reaction: "Advertising/Consumer Reaction Test",
     classification_audit: "Classification Validity Audit"
+  }
+};
+
+const MEETING_GUIDE_TRANSLATIONS = {
+  en: {
+    expert_panel: {
+      purpose: "Multiple personas respond to the same topic from their own knowledge and viewpoints.",
+      outputs: ["Key opinion by persona", "Points of agreement", "Points of disagreement", "Claims requiring verification", "Conclusion for the minutes"]
+    },
+    expert_interview: {
+      purpose: "Interview one persona in depth.",
+      outputs: ["Persona's core answer", "Knowledge used", "Judgment criteria", "Limits", "Follow-up questions"]
+    },
+    delphi_lite: {
+      purpose: "Multiple personas respond like independent evaluators and compare differences.",
+      outputs: ["Judgment by persona", "Score or rating", "Reasons for disagreement", "Conditions for possible agreement", "Final reservations"],
+      caution: "Do not describe this as an actual Delphi study. Label it as a “Delphi Lite simulation.”"
+    },
+    focus_group: {
+      purpose: "Explore reactions from a virtual stakeholder or consumer group.",
+      outputs: ["First impression", "Common reactions", "Divergent reactions", "Sources of distrust", "Improvement suggestions"],
+      caution: "Do not present this as actual consumer research findings."
+    },
+    stakeholder_test: {
+      purpose: "Explore how policies, public messages, school rules, or AI adoption plans may be received by each stakeholder group.",
+      outputs: ["Reaction by stakeholder", "Benefits", "Concerns", "Conflict points", "Acceptance conditions", "Suggested improvements to explanation"]
+    },
+    ad_reaction: {
+      purpose: "Explore likely reactions to advertising copy, campaign messages, or promotional text.",
+      outputs: ["Appeal factors", "Resistance", "Trust", "Memorable phrases", "Possible misunderstandings", "Revision suggestions"],
+      caution: "Do not present this as actual market research findings."
+    },
+    classification_audit: {
+      purpose: "Review whether a classification scheme made by AI or humans is socially valid.",
+      outputs: ["Accuracy review", "Reliability review", "Truthfulness review", "Validity review", "Social fit review", "Appeal risk review", "Verifiable claims", "Unverifiable assumptions", "Value judgments", "Revised classification scheme"]
+    }
   }
 };
 
@@ -636,8 +690,26 @@ function renderQuestionPresets() {
 function renderMeetingTypes() {
   const keys = Object.keys(config?.meetingTypes || MEETING_LABELS.ko);
   const labels = MEETING_LABELS[uiLanguage] || MEETING_LABELS.ko;
-  $("meetingType").innerHTML = keys.map((key) => `<option value="${key}">${escapeHtml(labels[key] || config.meetingTypes[key] || key)}</option>`).join("");
+  const details = config?.meetingTypeDetails || {};
+  $("meetingType").innerHTML = keys.map((key) => `<option value="${key}">${escapeHtml(labels[key] || details[key]?.label || config.meetingTypes[key] || key)}</option>`).join("");
   if (!$("meetingType").value) $("meetingType").value = "classification_audit";
+  renderMeetingGuide();
+}
+
+function renderMeetingGuide() {
+  const key = $("meetingType").value;
+  const detail = MEETING_GUIDE_TRANSLATIONS[uiLanguage]?.[key] || config?.meetingTypeDetails?.[key];
+  if (!detail) {
+    $("meetingGuide").innerHTML = "";
+    return;
+  }
+  const outputs = (detail.outputs || []).map((item) => escapeHtml(item)).join(", ");
+  const caution = detail.caution ? `<div><strong>${escapeHtml(t("caution"))}</strong>: ${escapeHtml(detail.caution)}</div>` : "";
+  $("meetingGuide").innerHTML = [
+    `<div><strong>${escapeHtml(t("purpose"))}</strong>: ${escapeHtml(detail.purpose || "")}</div>`,
+    `<div><strong>${escapeHtml(t("outputItems"))}</strong>: ${outputs}</div>`,
+    caution
+  ].filter(Boolean).join("");
 }
 
 function renderTemplates(applyCurrent = false) {
@@ -825,6 +897,8 @@ $("templateSelect").onchange = () => {
   const templates = TEMPLATES[uiLanguage] || TEMPLATES.ko;
   applyTemplate(templates[Number($("templateSelect").value)]);
 };
+
+$("meetingType").onchange = renderMeetingGuide;
 
 $("questionPreset").onchange = (e) => {
   if (e.target.value) $("messageInput").value = e.target.value;
