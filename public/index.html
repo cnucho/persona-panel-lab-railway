@@ -458,6 +458,27 @@ const SYSTEM = {
     entered: "입장 완료",
     mockNotice: "OPENAI_API_KEY가 없어 현재는 모의 응답으로 실행됩니다. 모의 응답은 크레딧을 차감하지 않습니다.",
     requestFailed: "요청 실패",
+    errorValidEmail: "올바른 이메일 주소를 입력하세요.",
+    errorLoginNotAllowed: "허용된 이메일이 아닙니다. 이메일 주소에 dgist가 포함되어야 합니다.",
+    errorNoCredits: "남은 크레딧이 없습니다.",
+    errorInsufficientCredits: "남은 크레딧이 부족합니다. 요약본을 생성해 맥락을 줄이거나 더 짧게 질문하세요.",
+    errorStudentNotFound: "학생 세션을 찾을 수 없습니다. 다시 로그인하세요.",
+    errorSessionNotFound: "회의를 찾을 수 없습니다. 회의를 다시 시작하세요.",
+    errorNoSessionAccess: "이 회의에 접근할 권한이 없습니다.",
+    errorStudentIdRequired: "학생 확인 정보가 필요합니다. 다시 로그인하세요.",
+    errorInvalidAccessCode: "유효하지 않은 수업 코드입니다.",
+    errorCreateStudentFirst: "학생 세션을 먼저 만드세요.",
+    errorMaxPersonas: "퍼소나 최대 인원을 넘었습니다.",
+    errorMaxMessages: "이 회의의 메시지 한도에 도달했습니다.",
+    errorMaxRounds: "이 회의의 라운드 한도에 도달했습니다. 요약을 만들고 새 회의를 시작하세요.",
+    errorCreatePersonaFirst: "퍼소나를 먼저 1명 이상 생성하세요.",
+    errorPersonaNotFound: "개별 대화할 퍼소나를 찾을 수 없습니다.",
+    errorNoTranscriptToEdit: "편집할 회의록이 아직 없습니다.",
+    errorAdminForbidden: "관리자 권한이 필요합니다.",
+    errorAuthRequired: "로그인이 필요합니다.",
+    errorCentralOff: "현재 중앙 인증은 꺼져 있습니다.",
+    errorUnknownPricing: "이 모델의 가격 정보가 없습니다.",
+    errorMessageWithDetail: "오류가 발생했습니다: {message}",
     user: "사용자",
     used: "사용",
     remaining: "남음",
@@ -586,6 +607,27 @@ const SYSTEM = {
     entered: "Entered.",
     mockNotice: "OPENAI_API_KEY is missing, so the app is running with mock responses. Mock responses do not consume credits.",
     requestFailed: "Request failed",
+    errorValidEmail: "Enter a valid email address.",
+    errorLoginNotAllowed: "This email is not allowed. The address must contain dgist.",
+    errorNoCredits: "No credits remain.",
+    errorInsufficientCredits: "Not enough credits remain. Create a summary to compress context, or ask a shorter question.",
+    errorStudentNotFound: "Student session was not found. Log in again.",
+    errorSessionNotFound: "Meeting was not found. Start the meeting again.",
+    errorNoSessionAccess: "You do not have access to this meeting.",
+    errorStudentIdRequired: "Student verification is required. Log in again.",
+    errorInvalidAccessCode: "The class code is not valid.",
+    errorCreateStudentFirst: "Create a student session first.",
+    errorMaxPersonas: "The persona limit has been reached.",
+    errorMaxMessages: "This meeting has reached the message limit.",
+    errorMaxRounds: "This meeting has reached the round limit. Create a summary and start a new meeting.",
+    errorCreatePersonaFirst: "Create at least one persona first.",
+    errorPersonaNotFound: "The persona for the individual chat was not found.",
+    errorNoTranscriptToEdit: "There is no transcript to edit yet.",
+    errorAdminForbidden: "Admin permission is required.",
+    errorAuthRequired: "Login is required.",
+    errorCentralOff: "Central authentication is currently disabled.",
+    errorUnknownPricing: "Pricing for this model is not configured.",
+    errorMessageWithDetail: "Something went wrong: {message}",
     user: "User",
     used: "Used",
     remaining: "Remaining",
@@ -924,6 +966,48 @@ function setStatus(text, cls = "") {
   $("usageBox").innerHTML = `<span class="${cls}">${escapeHtml(text)}</span>`;
 }
 
+const ERROR_MESSAGE_KEYS = {
+  valid_email_required: "errorValidEmail",
+  login_email_not_allowed: "errorLoginNotAllowed",
+  auth_required: "errorAuthRequired",
+  admin_forbidden: "errorAdminForbidden",
+  central_auth_not_configured: "errorCentralOff",
+  "남은 크레딧이 없습니다.": "errorNoCredits",
+  "남은 크레딧이 부족합니다. 요약본을 생성해 맥락을 줄이거나 더 짧게 질문하세요.": "errorInsufficientCredits",
+  "학생 세션을 찾을 수 없습니다.": "errorStudentNotFound",
+  "세션을 찾을 수 없습니다.": "errorSessionNotFound",
+  "세션 접근 권한이 없습니다.": "errorNoSessionAccess",
+  "studentId가 필요합니다.": "errorStudentIdRequired",
+  "유효하지 않은 수업 코드입니다.": "errorInvalidAccessCode",
+  "학생 세션을 먼저 만드세요.": "errorCreateStudentFirst",
+  "메시지를 입력하세요.": "writeMessage",
+  "퍼소나를 먼저 1명 이상 생성하세요.": "errorCreatePersonaFirst",
+  "개별 대화할 퍼소나를 찾을 수 없습니다.": "errorPersonaNotFound",
+  "편집할 회의록이 아직 없습니다.": "errorNoTranscriptToEdit"
+};
+
+function localizeErrorMessage(raw) {
+  const message = String(raw || "");
+  const key = ERROR_MESSAGE_KEYS[message];
+  if (key) return t(key);
+  if (/Unknown model pricing/i.test(message)) return t("errorUnknownPricing");
+  if (/퍼소나는 최대|personas?.*max|maximum.*persona/i.test(message)) return t("errorMaxPersonas");
+  if (/메시지는 세션당 최대|message.*limit|max.*messages/i.test(message)) return t("errorMaxMessages");
+  if (/라운드는 최대|round.*limit|max.*rounds/i.test(message)) return t("errorMaxRounds");
+  if (/student.*not.*found|학생 세션/i.test(message)) return t("errorStudentNotFound");
+  if (/session.*not.*found|세션을 찾/i.test(message)) return t("errorSessionNotFound");
+  if (!message) return t("requestFailed");
+  return templateText("errorMessageWithDetail", { message });
+}
+
+function errorMessage(error) {
+  return localizeErrorMessage(error?.errorCode || error?.message || error);
+}
+
+function setError(error) {
+  setStatus(errorMessage(error), "danger");
+}
+
 function saveState() {
   if (student) localStorage.setItem("pp_student", JSON.stringify(student));
   else localStorage.removeItem("pp_student");
@@ -964,7 +1048,12 @@ async function api(path, opts = {}) {
     body: rest.body ? JSON.stringify(rest.body) : undefined
   });
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data.error || t("requestFailed"));
+  if (!res.ok) {
+    const err = new Error(data.error || t("requestFailed"));
+    err.errorCode = data.error || "";
+    err.status = res.status;
+    throw err;
+  }
   return data;
 }
 
@@ -1179,7 +1268,7 @@ $("adminLoadBtn").onclick = async () => {
     });
     renderAdminOverview(data.students || []);
   } catch (e) {
-    $("adminBox").textContent = e.message;
+    $("adminBox").textContent = errorMessage(e);
   } finally {
     $("adminLoadBtn").disabled = false;
   }
@@ -1213,7 +1302,7 @@ $("enterBtn").onclick = async () => {
     $("entryDetails").open = false;
     setStatus(t("entered"), "good");
   } catch (e) {
-    setStatus(e.message, "danger");
+    setError(e);
   }
 };
 
@@ -1240,7 +1329,7 @@ $("createSessionBtn").onclick = async () => {
     $("meetingDetails").open = false;
     setStatus(t("meetingStarted"), "good");
   } catch (e) {
-    setStatus(e.message, "danger");
+    setError(e);
   }
 };
 
@@ -1265,7 +1354,7 @@ $("addPersonaBtn").onclick = async () => {
     await loadSession();
     setStatus(t("personaAdded"), "good");
   } catch (e) {
-    setStatus(e.message, "danger");
+    setError(e);
   }
 };
 
@@ -1294,7 +1383,7 @@ $("sendBtn").onclick = async () => {
     showUsageResult(data.usage, data.remainingCredits, t("messageCharged"));
     if (dry) $("usageBox").innerHTML += `<br>${escapeHtml(t("mockResponse"))}`;
   } catch (e) {
-    setStatus(e.message, "danger");
+    setError(e);
   } finally {
     $("sendBtn").disabled = false;
   }
@@ -1314,7 +1403,7 @@ $("summaryBtn").onclick = async () => {
     showUsageResult(data.usage, data.remainingCredits, t("summaryChargedLabel"));
     if (dry) $("usageBox").innerHTML += `<br>${escapeHtml(t("mockResponse"))}`;
   } catch (e) {
-    setStatus(e.message, "danger");
+    setError(e);
   } finally {
     $("summaryBtn").disabled = false;
   }
@@ -1341,13 +1430,13 @@ $("editorBtn").onclick = async () => {
     showUsageResult(data.usage, data.remainingCredits, t("editorChargedLabel"));
     if (dry) $("usageBox").innerHTML += `<br>${escapeHtml(t("mockResponse"))}`;
   } catch (e) {
-    setStatus(e.message, "danger");
+    setError(e);
   } finally {
     $("editorBtn").disabled = false;
   }
 };
 
-$("refreshBtn").onclick = () => loadSession().catch((e) => setStatus(e.message, "danger"));
+$("refreshBtn").onclick = () => loadSession().catch((e) => setError(e));
 
 function downloadExport(ext) {
   if (!session) {
@@ -1361,7 +1450,7 @@ $("exportMdBtn").onclick = () => downloadExport("md");
 $("exportDocxBtn").onclick = () => downloadExport("docx");
 $("exportHwpxBtn").onclick = () => downloadExport("hwpx");
 
-init().catch((e) => setStatus(e.message, "danger"));
+init().catch((e) => setError(e));
 </script>
 </body>
 </html>
