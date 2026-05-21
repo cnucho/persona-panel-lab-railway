@@ -925,10 +925,35 @@ function setStatus(text, cls = "") {
 }
 
 function saveState() {
-  localStorage.setItem("pp_student", JSON.stringify(student));
-  localStorage.setItem("pp_session", JSON.stringify(session));
+  if (student) localStorage.setItem("pp_student", JSON.stringify(student));
+  else localStorage.removeItem("pp_student");
+  if (session) localStorage.setItem("pp_session", JSON.stringify(session));
+  else localStorage.removeItem("pp_session");
   localStorage.setItem("pp_shared_session_id", authSessionId || "");
   localStorage.setItem("pp_auth_session", JSON.stringify(authSession || null));
+}
+
+function clearSessionState() {
+  session = null;
+  personas = [];
+  messages = [];
+  activeTab = "shared";
+  saveState();
+  $("sessionInfo").textContent = t("sessionHint");
+  $("meetingDetails").open = true;
+  renderPersonas();
+  renderMessages();
+}
+
+function clearStudentState() {
+  student = null;
+  authSessionId = "";
+  authSession = null;
+  clearSessionState();
+  saveState();
+  $("creditBox").textContent = t("creditHint");
+  $("creditProgress").style.width = "0%";
+  $("entryDetails").open = true;
 }
 
 async function api(path, opts = {}) {
@@ -1058,6 +1083,26 @@ async function loadSession() {
   renderMessages();
 }
 
+async function verifyStoredState() {
+  if (!student) return;
+  try {
+    const data = await api(`/api/students/${student.id}`);
+    student = data.student;
+    renderCredit(data.remainingCredits);
+  } catch (e) {
+    clearStudentState();
+    setStatus(t("enterFirst"), "warn");
+    return;
+  }
+  if (!session) return;
+  try {
+    await loadSession();
+  } catch (e) {
+    clearSessionState();
+    setStatus(t("sessionHint"), "warn");
+  }
+}
+
 function updateModelInfo() {
   if (!config) {
     $("modelInfo").textContent = t("loadingConfig");
@@ -1092,7 +1137,7 @@ async function init() {
   $("passwordLoginBlock").style.display = config?.centralAuthConfigured ? "" : "none";
   $("entryDetails").open = !student;
   $("meetingDetails").open = !session;
-  if (session) await loadSession();
+  await verifyStoredState();
   if (!config.hasOpenAiKey) setStatus(t("mockNotice"), "warn");
 }
 
