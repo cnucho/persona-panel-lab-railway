@@ -161,6 +161,10 @@
             <label for="expertLanguage" data-i18n="expertLanguage">전문가 응답 언어</label>
             <select id="expertLanguage"></select>
           </div>
+          <div>
+            <label for="reportLanguage" data-i18n="reportLanguage">보고서 언어</label>
+            <select id="reportLanguage"></select>
+          </div>
         </div>
         <label for="displayName" data-i18n="displayName">이름 또는 별칭</label>
         <input id="displayName" />
@@ -270,6 +274,7 @@ let messages = [];
 let activeTab = "shared";
 let uiLanguage = localStorage.getItem("pp_ui_language") || "ko";
 let expertLanguage = localStorage.getItem("pp_expert_language") || "ko";
+let reportLanguage = localStorage.getItem("pp_report_language") || uiLanguage;
 
 const $ = (id) => document.getElementById(id);
 
@@ -281,6 +286,7 @@ const SYSTEM = {
     sectionEntry: "1. 입장과 예산",
     interfaceLanguage: "시스템 언어",
     expertLanguage: "전문가 응답 언어",
+    reportLanguage: "보고서 언어",
     displayName: "이름 또는 별칭",
     accessCode: "수업 코드",
     ifNeeded: "필요한 경우",
@@ -374,6 +380,7 @@ const SYSTEM = {
     sectionEntry: "1. Entry and Budget",
     interfaceLanguage: "System Language",
     expertLanguage: "Expert Response Language",
+    reportLanguage: "Report Language",
     displayName: "Name or Alias",
     accessCode: "Class Code",
     ifNeeded: "if needed",
@@ -637,6 +644,15 @@ function renderExpertLanguages() {
   expertLanguage = $("expertLanguage").value;
 }
 
+function renderReportLanguages() {
+  const languages = config?.languages || { ko: "한국어", en: "English" };
+  $("reportLanguage").innerHTML = Object.entries(languages)
+    .map(([key, label]) => `<option value="${key}">${escapeHtml(label)}</option>`)
+    .join("");
+  $("reportLanguage").value = languages[reportLanguage] ? reportLanguage : (languages[uiLanguage] ? uiLanguage : "ko");
+  reportLanguage = $("reportLanguage").value;
+}
+
 function setStatus(text, cls = "") {
   $("usageBox").innerHTML = `<span class="${cls}">${escapeHtml(text)}</span>`;
 }
@@ -751,6 +767,7 @@ async function init() {
   config = await api("/api/config");
   $("interfaceLanguage").value = uiLanguage;
   renderExpertLanguages();
+  renderReportLanguages();
   applySystemLanguage({ forceDefaults: true, applyTemplateValues: true });
   if (session) await loadSession();
   if (!config.hasOpenAiKey) setStatus(t("mockNotice"), "warn");
@@ -759,12 +776,21 @@ async function init() {
 $("interfaceLanguage").onchange = (e) => {
   uiLanguage = e.target.value;
   localStorage.setItem("pp_ui_language", uiLanguage);
+  if (!localStorage.getItem("pp_report_language")) {
+    reportLanguage = uiLanguage;
+    renderReportLanguages();
+  }
   applySystemLanguage({ applyTemplateValues: true });
 };
 
 $("expertLanguage").onchange = (e) => {
   expertLanguage = e.target.value;
   localStorage.setItem("pp_expert_language", expertLanguage);
+};
+
+$("reportLanguage").onchange = (e) => {
+  reportLanguage = e.target.value;
+  localStorage.setItem("pp_report_language", reportLanguage);
 };
 
 $("templateSelect").onchange = () => {
@@ -875,7 +901,7 @@ $("summaryBtn").onclick = async () => {
     if (!student || !session) throw new Error(t("startFirst"));
     $("summaryBtn").disabled = true;
     setStatus(t("summarizing"));
-    const data = await api(`/api/sessions/${session.id}/summary`, { method: "POST", body: { studentId: student.id, expertLanguage } });
+    const data = await api(`/api/sessions/${session.id}/summary`, { method: "POST", body: { studentId: student.id, reportLanguage } });
     student = data.student;
     saveState();
     renderCredit(data.remainingCredits);
@@ -898,7 +924,7 @@ $("editorBtn").onclick = async () => {
       method: "POST",
       body: {
         studentId: student.id,
-        expertLanguage,
+        reportLanguage,
         editorInstruction: $("editorInstruction").value
       }
     });
@@ -922,7 +948,7 @@ function downloadExport(ext) {
     setStatus(t("startToDownload"), "danger");
     return;
   }
-  window.location.href = `/api/sessions/${session.id}/export.${ext}`;
+  window.location.href = `/api/sessions/${session.id}/export.${ext}?language=${encodeURIComponent(reportLanguage)}`;
 }
 
 $("exportMdBtn").onclick = () => downloadExport("md");

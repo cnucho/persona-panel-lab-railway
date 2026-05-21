@@ -102,9 +102,23 @@ const MEETING_TYPES = {
 const LANGUAGE_OPTIONS = {
   ko: { label: '한국어', instruction: '모든 전문가 발언과 요약을 자연스러운 한국어로 작성한다.' },
   en: { label: 'English', instruction: 'Write all expert responses and summaries in natural English.' },
+  de: { label: 'Deutsch', instruction: 'Schreibe alle Expertenantworten und Zusammenfassungen in natürlichem Deutsch.' },
+  kk: { label: 'Қазақша', instruction: 'Сарапшылардың барлық жауаптары мен түйіндемелерін табиғи қазақ тілінде жаз.' },
+  am: { label: 'አማርኛ', instruction: 'የሙያተኞችን ምላሾች እና ማጠቃለያዎች በተፈጥሯዊ አማርኛ ጻፍ።' },
   ja: { label: '日本語', instruction: '専門家の発言と要約を自然な日本語で書く。' },
   zh: { label: '中文', instruction: '所有专家发言和摘要都使用自然的中文。' },
   es: { label: 'Español', instruction: 'Escribe todas las respuestas y resúmenes de expertos en español natural.' }
+};
+
+const EXPORT_LABELS = {
+  ko: { meetingType: '회의 종류', topic: '주제', place: '장소/상황', startedAt: '시작 시각', personas: '퍼소나', role: '역할', expertise: '전문 영역과 경험', knowledge: '지식', values: '가치', rules: '판단 규칙', style: '말하기 방식', transcript: '회의록', time: '시각', model: '모델', input: '입력', output: '출력', credits: '차감' },
+  en: { meetingType: 'Meeting type', topic: 'Topic', place: 'Place/context', startedAt: 'Started at', personas: 'Personas', role: 'Role', expertise: 'Expertise and experience', knowledge: 'Knowledge', values: 'Values', rules: 'Judgment rules', style: 'Speaking style', transcript: 'Transcript', time: 'Time', model: 'Model', input: 'Input', output: 'Output', credits: 'Credits charged' },
+  de: { meetingType: 'Sitzungsart', topic: 'Thema', place: 'Ort/Kontext', startedAt: 'Beginn', personas: 'Personas', role: 'Rolle', expertise: 'Fachgebiet und Erfahrung', knowledge: 'Wissen', values: 'Werte', rules: 'Beurteilungsregeln', style: 'Sprechweise', transcript: 'Protokoll', time: 'Zeit', model: 'Modell', input: 'Eingabe', output: 'Ausgabe', credits: 'Abgezogene Credits' },
+  kk: { meetingType: 'Кездесу түрі', topic: 'Тақырып', place: 'Орын/жағдай', startedAt: 'Басталу уақыты', personas: 'Персоналар', role: 'Рөлі', expertise: 'Сараптама және тәжірибе', knowledge: 'Білім', values: 'Құндылықтар', rules: 'Бағалау ережелері', style: 'Сөйлеу мәнері', transcript: 'Хаттама', time: 'Уақыт', model: 'Модель', input: 'Кіріс', output: 'Шығыс', credits: 'Шегерілген кредиттер' },
+  am: { meetingType: 'የስብሰባ ዓይነት', topic: 'ርዕስ', place: 'ቦታ/አውድ', startedAt: 'የተጀመረበት ጊዜ', personas: 'ፐርሶናዎች', role: 'ሚና', expertise: 'ሙያ እና ተሞክሮ', knowledge: 'እውቀት', values: 'እሴቶች', rules: 'የፍርድ መመሪያዎች', style: 'የንግግር ዘይቤ', transcript: 'የስብሰባ መዝገብ', time: 'ጊዜ', model: 'ሞዴል', input: 'ግቤት', output: 'ውጤት', credits: 'የተቀነሱ ክሬዲቶች' },
+  ja: { meetingType: '会議種別', topic: 'テーマ', place: '場所/状況', startedAt: '開始時刻', personas: 'ペルソナ', role: '役割', expertise: '専門領域と経験', knowledge: '知識', values: '価値観', rules: '判断規則', style: '話し方', transcript: '議事録', time: '時刻', model: 'モデル', input: '入力', output: '出力', credits: '差し引きクレジット' },
+  zh: { meetingType: '会议类型', topic: '主题', place: '地点/情境', startedAt: '开始时间', personas: '画像', role: '角色', expertise: '专业领域与经验', knowledge: '知识', values: '价值观', rules: '判断规则', style: '表达方式', transcript: '会议记录', time: '时间', model: '模型', input: '输入', output: '输出', credits: '扣除积分' },
+  es: { meetingType: 'Tipo de reunión', topic: 'Tema', place: 'Lugar/contexto', startedAt: 'Inicio', personas: 'Personas', role: 'Rol', expertise: 'Experiencia y especialidad', knowledge: 'Conocimiento', values: 'Valores', rules: 'Reglas de juicio', style: 'Estilo de habla', transcript: 'Transcripción', time: 'Hora', model: 'Modelo', input: 'Entrada', output: 'Salida', credits: 'Créditos descontados' }
 };
 
 function id(prefix) {
@@ -459,31 +473,36 @@ function safeFileName(value, ext) {
   return `${base}.${ext}`;
 }
 
-function exportMarkdown(session, personas, messages) {
+function normalizedLanguage(value) {
+  return LANGUAGE_OPTIONS[value] ? value : 'ko';
+}
+
+function exportMarkdown(session, personas, messages, languageKey = 'ko') {
+  const labels = EXPORT_LABELS[normalizedLanguage(languageKey)] || EXPORT_LABELS.ko;
   return `# ${session.title}
 
-- 회의 종류: ${(MEETING_TYPES[session.meeting_type] || {}).label}
-- 주제: ${session.topic}
-- 장소/상황: ${session.place || '온라인'}
-- 시작 시각: ${session.started_at || session.created_at}
+- ${labels.meetingType}: ${(MEETING_TYPES[session.meeting_type] || {}).label}
+- ${labels.topic}: ${session.topic}
+- ${labels.place}: ${session.place || '온라인'}
+- ${labels.startedAt}: ${session.started_at || session.created_at}
 
-## 퍼소나
+## ${labels.personas}
 
 ${personas.map((p) => `### ${p.name}
-- 역할: ${p.role}
-- 전문 영역과 경험: ${p.expertise || ''}
-- 지식: ${p.knowledge || ''}
-- 가치: ${p.values_text || ''}
-- 판단 규칙: ${p.rules || ''}
-- 말하기 방식: ${p.style || ''}`).join('\n\n')}
+- ${labels.role}: ${p.role}
+- ${labels.expertise}: ${p.expertise || ''}
+- ${labels.knowledge}: ${p.knowledge || ''}
+- ${labels.values}: ${p.values_text || ''}
+- ${labels.rules}: ${p.rules || ''}
+- ${labels.style}: ${p.style || ''}`).join('\n\n')}
 
-## 회의록
+## ${labels.transcript}
 
 ${messages.map((m) => `### ${m.speaker} / ${m.channel}
 ${m.content}
 
-- 시각: ${m.created_at}
-- 모델: ${m.model || '-'} / 입력 ${m.tokens_in || 0}, 출력 ${m.tokens_out || 0}, 차감 ${m.credits_charged || 0} credits`).join('\n\n')}
+- ${labels.time}: ${m.created_at}
+- ${labels.model}: ${m.model || '-'} / ${labels.input} ${m.tokens_in || 0}, ${labels.output} ${m.tokens_out || 0}, ${labels.credits} ${m.credits_charged || 0}`).join('\n\n')}
 `;
 }
 
@@ -766,8 +785,8 @@ app.post('/api/sessions/:id/summary', async (req, res, next) => {
     const { session, personas, messages } = await loadSessionBundle(req.params.id);
     checkOwner(session, student.id);
     const transcript = messages.map((m) => `[${m.created_at}] ${m.speaker}/${m.channel}: ${m.content}`).join('\n');
-    const expertLanguage = LANGUAGE_OPTIONS[req.body.expertLanguage] ? req.body.expertLanguage : 'ko';
-    const system = `너는 전문가 퍼소나 인터뷰의 회의록 요약자다. 교육용 제출물로 쓸 수 있게 사실, 추정, 가치 판단, 이해관계, 합의, 불일치, 검증 필요 주장, 다음 질문을 분리한다. 퍼소나가 실제 전문가라는 식으로 과장하지 않는다. ${languageInstruction(expertLanguage)}`;
+    const reportLanguage = normalizedLanguage(req.body.reportLanguage || req.body.expertLanguage);
+    const system = `너는 전문가 퍼소나 인터뷰의 회의록 요약자다. 교육용 제출물로 쓸 수 있게 사실, 추정, 가치 판단, 이해관계, 합의, 불일치, 검증 필요 주장, 다음 질문을 분리한다. 퍼소나가 실제 전문가라는 식으로 과장하지 않는다. ${languageInstruction(reportLanguage)}`;
     const user = `회의 제목: ${session.title}
 회의 종류: ${(MEETING_TYPES[session.meeting_type] || {}).label}
 주제: ${session.topic}
@@ -808,10 +827,10 @@ app.post('/api/sessions/:id/editor', async (req, res, next) => {
     checkOwner(session, student.id);
     if (!messages.length) throw apiError(400, '편집할 회의록이 아직 없습니다.');
 
-    const expertLanguage = LANGUAGE_OPTIONS[req.body.expertLanguage] ? req.body.expertLanguage : 'ko';
+    const reportLanguage = normalizedLanguage(req.body.reportLanguage || req.body.expertLanguage);
     const instruction = String(req.body.editorInstruction || '').trim().slice(0, 1200);
-    const source = exportMarkdown(session, personas, messages);
-    const system = `너는 교육용 제출물 편집자다. 전문가 퍼소나 인터뷰 결과를 읽고 제출 가능한 보고서 초안으로 다듬는다. ${languageInstruction(expertLanguage)}
+    const source = exportMarkdown(session, personas, messages, reportLanguage);
+    const system = `너는 교육용 제출물 편집자다. 전문가 퍼소나 인터뷰 결과를 읽고 제출 가능한 보고서 초안으로 다듬는다. ${languageInstruction(reportLanguage)}
 
 편집 규칙:
 1. 원문에 없는 사실, 출처, 수치, 조사 결과를 만들지 않는다.
@@ -855,7 +874,7 @@ ${source}`;
 app.get('/api/sessions/:id/export.md', async (req, res, next) => {
   try {
     const { session, personas, messages } = await loadSessionBundle(req.params.id);
-    const md = exportMarkdown(session, personas, messages);
+    const md = exportMarkdown(session, personas, messages, req.query.language);
     sendDownload(res, {
       filename: safeFileName(session.title, 'md'),
       contentType: 'text/markdown; charset=utf-8',
@@ -867,7 +886,7 @@ app.get('/api/sessions/:id/export.md', async (req, res, next) => {
 app.get('/api/sessions/:id/export.docx', async (req, res, next) => {
   try {
     const { session, personas, messages } = await loadSessionBundle(req.params.id);
-    const md = exportMarkdown(session, personas, messages);
+    const md = exportMarkdown(session, personas, messages, req.query.language);
     const body = await buildDocxBuffer(md);
     sendDownload(res, {
       filename: safeFileName(session.title, 'docx'),
@@ -880,7 +899,7 @@ app.get('/api/sessions/:id/export.docx', async (req, res, next) => {
 app.get('/api/sessions/:id/export.hwpx', async (req, res, next) => {
   try {
     const { session, personas, messages } = await loadSessionBundle(req.params.id);
-    const md = exportMarkdown(session, personas, messages);
+    const md = exportMarkdown(session, personas, messages, req.query.language);
     const body = await buildHwpxBuffer(md);
     sendDownload(res, {
       filename: safeFileName(session.title, 'hwpx'),
