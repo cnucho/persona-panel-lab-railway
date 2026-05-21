@@ -29,7 +29,15 @@ const cfg = {
   accessCodes: new Set(String(process.env.ACCESS_CODES || '').split(',').map((s) => s.trim()).filter(Boolean)),
   classroomSecret: process.env.CLASSROOM_SHARED_SECRET || 'persona-panel-lab-secret',
   databaseUrl: process.env.DATABASE_URL || '',
-  openaiKey: process.env.OPENAI_API_KEY || ''
+  openaiKey: process.env.OPENAI_API_KEY || '',
+  centralAuthUrl: String(process.env.CENTRAL_AUTH_URL || '').trim().replace(/\/+$/, ''),
+  centralAuthSecret: process.env.CENTRAL_AUTH_SECRET || process.env.AUTH_SERVICE_SECRET || '',
+  sharedSessionCookie: process.env.SHARED_SESSION_COOKIE || 'shared_ai_session',
+  appId: process.env.APP_ID || 'persona-panel-lab',
+  appName: process.env.APP_NAME || 'Persona Panel Lab',
+  appCreditPolicies: process.env.APP_CREDIT_POLICIES || process.env.APP_CREDIT_POLICY || 'consumerinsight.kr=0,*=10',
+  appCreditMarkup: Number(process.env.APP_CREDIT_MARKUP || 10),
+  starterActualCostKrw: Number(process.env.STARTER_ACTUAL_COST_KRW || 3000)
 };
 
 // Estimated USD per 1M tokens. Override with env if your model pricing differs.
@@ -133,6 +141,126 @@ function nowIso() {
   return new Date().toISOString();
 }
 
+function normalizeEmail(value = '') {
+  return String(value || '').trim().toLowerCase();
+}
+
+function validEmail(value = '') {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizeEmail(value));
+}
+
+function parseCookies(req) {
+  return String(req.headers.cookie || '')
+    .split(';')
+    .map((part) => part.trim())
+    .filter(Boolean)
+    .reduce((cookies, part) => {
+      const index = part.indexOf('=');
+      if (index > 0) cookies[decodeURIComponent(part.slice(0, index))] = decodeURIComponent(part.slice(index + 1));
+      return cookies;
+    }, {});
+}
+
+function sharedSessionIdFromRequest(req, body = {}) {
+  const cookies = parseCookies(req);
+  return String(
+    body.sessionId ||
+    body.sharedSessionId ||
+    req.headers['x-shared-ai-session'] ||
+    cookies[cfg.sharedSessionCookie] ||
+    ''
+  ).trim();
+}
+
+function sessionCookieHeader(sessionId = '') {
+  return `${cfg.sharedSessionCookie}=${encodeURIComponent(sessionId)}; Path=/; Max-Age=${30 * 24 * 60 * 60}; HttpOnly; SameSite=None; Secure`;
+}
+
+function expiredSessionCookieHeader() {
+  return `${cfg.sharedSessionCookie}=; Path=/; Max-Age=0; HttpOnly; SameSite=None; Secure`;
+}
+
+function centralAuthEnabled() {
+  return Boolean(cfg.centralAuthUrl);
+}
+
+function centralUsagePolicy() {
+  const typicalUsageKrw = Math.max(1, Math.round(cfg.creditBudget / 3));
+  return {
+    typicalUsageKrw,
+    usageWarningMultiplier: 2,
+    usageMaxMultiplier: 3,
+    appCreditMarkup: cfg.appCreditMarkup,
+    appCreditLimitKrw: cfg.creditBudget,
+    starterAppCreditKrw: cfg.creditBudget,
+    starterCreditKrw: cfg.creditBudget,
+    starterActualCostKrw: cfg.starterActualCostKrw,
+    actualApiCostLimitKrw: cfg.starterActualCostKrw
+  };
+}
+
+function centralAppPayload(extra = {}) {
+  return {
+    appId: cfg.appId,
+    appName: cfg.appName,
+    usagePolicy: centralUsagePolicy(),
+    appCreditPolicies: cfg.appCreditPolicies,
+    ...extra
+  };
+}
+
+async function centralRequest(pathname, payload = {}) {
+  if (!centralAuthEnabled()) throw apiError(503, 'central_auth_not_configured');
+  const response = await fetch(`${cfg.centralAuthUrl}${pathname.startsWith('/') ? pathname : `/${pathname}`}`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(cfg.centralAuthSecret ? { Authorization: `Bearer ${cfg.centralAuthSecret}` } : {})
+    },
+    body: JSON.stringify(payload || {})
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    const error = apiError(response.status, data.error || data.code || `central_auth_error_${response.status}`);
+    error.body = data;
+    throw error;
+  }
+  return data;
+}
+
+async function centralSessionForRequest(req, body = {}) {
+  const sessionId = sharedSessionIdFromRequest(req, body);
+  if (!sessionId) throw apiError(401, 'auth_required');
+  const data = await centralRequest('/api/auth/session', centralAppPayload({ sessionId, sharedSessionId: sessionId }));
+  const session = data.session || data.user || null;
+  if (!session?.email) throw apiError(401, 'auth_required');
+  return { sessionId, session, budget: data.budget || data.usageLimit || null };
+}
+
+async function centralWalletForSession(sessionId) {
+  if (!sessionId) return null;
+  const data = await centralRequest('/api/credits/balance', centralAppPayload({ sessionId, sharedSessionId: sessionId }));
+  return data.wallet || data.budget || null;
+}
+
+function studentFromCentralSession({ sessionId, session, budget = null, wallet = null, displayName = '', accessCode = '' }) {
+  const email = normalizeEmail(session.email);
+  const source = wallet || budget || {};
+  const limit = Math.max(0, Number(source.appCreditLimitKrw ?? source.app_credit_limit_krw ?? source.appCreditGrantedKrw ?? cfg.creditBudget));
+  const used = Math.max(0, Number(source.appCreditUsedKrw ?? source.app_credit_spent_krw ?? source.app_credit_used_krw ?? 0));
+  return {
+    id: `stu_${hash(`${cfg.classroomSecret}:central:${email}`)}`,
+    display_name: String(displayName || session.name || email).trim().slice(0, 80),
+    access_code: accessCode || null,
+    email,
+    central_session_id: sessionId,
+    credit_limit: Math.max(cfg.creditBudget, Math.ceil(limit || cfg.creditBudget)),
+    credits_used: Math.ceil(used),
+    created_at: nowIso(),
+    updated_at: nowIso()
+  };
+}
+
 function roughTokens(text) {
   const s = String(text || '');
   const koreanChars = (s.match(/[가-힣]/g) || []).length;
@@ -174,6 +302,39 @@ function ensureCreditAvailable(student, estimatedCredits) {
   }
 }
 
+async function ensureCentralUsageAvailable(student) {
+  if (!centralAuthEnabled() || !student?.central_session_id) return null;
+  const data = await centralRequest('/api/usage/check', centralAppPayload({
+    sessionId: student.central_session_id,
+    sharedSessionId: student.central_session_id,
+    usageWarningConfirmed: true
+  }));
+  return data.budget || data.usageLimit || null;
+}
+
+async function recordCentralUsage(student, { model, inputTokens, outputTokens, task }) {
+  if (!centralAuthEnabled() || !student?.central_session_id) return null;
+  const data = await centralRequest('/api/usage/record', centralAppPayload({
+    sessionId: student.central_session_id,
+    sharedSessionId: student.central_session_id,
+    provider: 'openai',
+    model,
+    task,
+    usage: {
+      input_tokens: inputTokens,
+      output_tokens: outputTokens,
+      total_tokens: Number(inputTokens || 0) + Number(outputTokens || 0)
+    }
+  }));
+  return data;
+}
+
+function chargedCreditsFromCentralUsage(recordedUsage, fallbackCredits) {
+  const value = Number(recordedUsage?.cost?.appCreditKrw ?? recordedUsage?.cost?.app_credit_krw);
+  if (Number.isFinite(value)) return Math.max(0, Math.ceil(value));
+  return fallbackCredits;
+}
+
 class MemoryStore {
   constructor() {
     this.students = new Map();
@@ -185,6 +346,7 @@ class MemoryStore {
   async upsertStudent(student) {
     const prev = this.students.get(student.id);
     const merged = { ...student, ...(prev ? { credits_used: prev.credits_used, created_at: prev.created_at } : {}) };
+    if (prev?.credit_limit) merged.credit_limit = Math.max(Number(prev.credit_limit || 0), Number(student.credit_limit || 0));
     this.students.set(student.id, merged);
     return merged;
   }
@@ -233,11 +395,15 @@ class PgStore {
         id text primary key,
         display_name text not null,
         access_code text,
+        email text,
+        central_session_id text,
         credit_limit integer not null,
         credits_used integer not null default 0,
         created_at timestamptz not null default now(),
         updated_at timestamptz not null default now()
       );
+      alter table students add column if not exists email text;
+      alter table students add column if not exists central_session_id text;
       create table if not exists sessions (
         id text primary key,
         student_id text not null references students(id),
@@ -280,11 +446,17 @@ class PgStore {
   }
   async upsertStudent(s) {
     const row = await this.pool.query(`
-      insert into students(id, display_name, access_code, credit_limit)
-      values($1,$2,$3,$4)
-      on conflict(id) do update set display_name = excluded.display_name, access_code = excluded.access_code, updated_at = now()
-      returning id, display_name, access_code, credit_limit, credits_used, created_at, updated_at
-    `, [s.id, s.display_name, s.access_code, s.credit_limit]);
+      insert into students(id, display_name, access_code, email, central_session_id, credit_limit, credits_used)
+      values($1,$2,$3,$4,$5,$6,$7)
+      on conflict(id) do update set
+        display_name = excluded.display_name,
+        access_code = excluded.access_code,
+        email = excluded.email,
+        central_session_id = excluded.central_session_id,
+        credit_limit = greatest(students.credit_limit, excluded.credit_limit),
+        updated_at = now()
+      returning id, display_name, access_code, email, central_session_id, credit_limit, credits_used, created_at, updated_at
+    `, [s.id, s.display_name, s.access_code, s.email || null, s.central_session_id || null, s.credit_limit, s.credits_used || 0]);
     return row.rows[0];
   }
   async getStudent(id) {
@@ -604,12 +776,106 @@ app.use(morgan('dev'));
 app.use(express.json({ limit: '1mb' }));
 app.use(express.static(path.join(__dirname, '..', 'public')));
 
+app.post('/api/auth/login', async (req, res, next) => {
+  try {
+    if (!centralAuthEnabled()) throw apiError(503, 'central_auth_not_configured');
+    const email = normalizeEmail(req.body.email || req.body.proLoginEmail);
+    const password = String(req.body.password || req.body.proLoginPassword || '');
+    if (!validEmail(email)) throw apiError(400, 'valid_email_required');
+    const data = await centralRequest('/api/auth/login', centralAppPayload({
+      email,
+      password,
+      name: req.body.name || req.body.displayName || email.split('@')[0],
+      clientIp: req.ip
+    }));
+    const sessionId = data.sessionId || data.session?.sessionId || data.user?.sessionId || '';
+    res.setHeader('Set-Cookie', sessionCookieHeader(sessionId));
+    res.json({
+      ok: true,
+      sessionId,
+      session: data.session || data.user || null,
+      budget: data.budget || data.usageLimit || null,
+      auth: data.auth || { ok: true }
+    });
+  } catch (e) { next(e); }
+});
+
+app.post('/api/auth/logout', async (req, res, next) => {
+  try {
+    const sessionId = sharedSessionIdFromRequest(req, req.body || {});
+    if (centralAuthEnabled() && sessionId) {
+      await centralRequest('/api/auth/logout', centralAppPayload({ sessionId, sharedSessionId: sessionId })).catch(() => null);
+    }
+    res.setHeader('Set-Cookie', expiredSessionCookieHeader());
+    res.json({ ok: true });
+  } catch (e) { next(e); }
+});
+
+app.get('/api/auth/session', async (req, res, next) => {
+  try {
+    if (!centralAuthEnabled()) {
+      res.json({ ok: false, authenticated: false, centralAuthConfigured: false });
+      return;
+    }
+    const data = await centralSessionForRequest(req, {});
+    const wallet = await centralWalletForSession(data.sessionId).catch(() => null);
+    res.json({ ok: true, authenticated: true, sessionId: data.sessionId, session: data.session, budget: data.budget, wallet });
+  } catch (e) {
+    if (e.status === 401) res.status(401).json({ ok: false, authenticated: false, error: 'auth_required' });
+    else next(e);
+  }
+});
+
+app.post('/api/auth/email/start', async (req, res, next) => {
+  try {
+    if (!centralAuthEnabled()) throw apiError(503, 'central_auth_not_configured');
+    const data = await centralRequest('/api/auth/email/start', centralAppPayload({
+      ...req.body,
+      email: req.body.email || req.body.proLoginEmail
+    }));
+    res.json(data);
+  } catch (e) { next(e); }
+});
+
+app.post('/api/auth/email/verify', async (req, res, next) => {
+  try {
+    if (!centralAuthEnabled()) throw apiError(503, 'central_auth_not_configured');
+    const data = await centralRequest('/api/auth/email/verify', centralAppPayload({
+      ...req.body,
+      email: req.body.email || req.body.proLoginEmail
+    }));
+    res.json(data);
+  } catch (e) { next(e); }
+});
+
+app.all('/api/billing/products', async (req, res, next) => {
+  try {
+    if (!centralAuthEnabled()) {
+      res.json({ ok: true, products: [], paymentProviderConfigured: false, paymentMode: 'local' });
+      return;
+    }
+    const data = await centralRequest('/api/billing/products', centralAppPayload(req.method === 'POST' ? req.body : {}));
+    res.json(data);
+  } catch (e) { next(e); }
+});
+
+app.post('/api/credits/balance', async (req, res, next) => {
+  try {
+    if (!centralAuthEnabled()) throw apiError(503, 'central_auth_not_configured');
+    const sessionId = sharedSessionIdFromRequest(req, req.body || {});
+    const data = await centralRequest('/api/credits/balance', centralAppPayload({ ...req.body, sessionId, sharedSessionId: sessionId }));
+    res.json(data);
+  } catch (e) { next(e); }
+});
+
 app.get('/api/health', (req, res) => {
-  res.json({ ok: true, time: nowIso(), hasOpenAiKey: Boolean(cfg.openaiKey), defaultModel: cfg.defaultModel });
+  res.json({ ok: true, time: nowIso(), hasOpenAiKey: Boolean(cfg.openaiKey), defaultModel: cfg.defaultModel, centralAuthConfigured: centralAuthEnabled() });
 });
 
 app.get('/api/config', (req, res) => {
   res.json({
+    appId: cfg.appId,
+    appName: cfg.appName,
     defaultModel: cfg.defaultModel,
     summaryModel: cfg.summaryModel,
     editorModel: cfg.editorModel,
@@ -618,6 +884,9 @@ app.get('/api/config', (req, res) => {
     krwPerCredit: cfg.krwPerCredit,
     usdToKrw: cfg.usdToKrw,
     requireAccessCode: cfg.requireAccessCode,
+    centralAuthConfigured: centralAuthEnabled(),
+    sharedSessionCookie: cfg.sharedSessionCookie,
+    appCreditPolicies: cfg.appCreditPolicies,
     hasOpenAiKey: Boolean(cfg.openaiKey),
     meetingTypes: Object.fromEntries(Object.entries(MEETING_TYPES).map(([k, v]) => [k, v.label])),
     depthPresets: Object.fromEntries(Object.entries(DEPTH_PRESETS).map(([k, v]) => [k, { label: v.label, maxOutputTokens: v.maxOutputTokens }])),
@@ -630,6 +899,27 @@ app.post('/api/students', async (req, res, next) => {
   try {
     const displayName = String(req.body.displayName || '').trim().slice(0, 80);
     const accessCode = String(req.body.accessCode || '').trim();
+    if (centralAuthEnabled()) {
+      const auth = await centralSessionForRequest(req, req.body);
+      const wallet = await centralWalletForSession(auth.sessionId).catch(() => null);
+      const centralStudent = studentFromCentralSession({
+        sessionId: auth.sessionId,
+        session: auth.session,
+        budget: auth.budget,
+        wallet,
+        displayName,
+        accessCode
+      });
+      const student = await store.upsertStudent(centralStudent);
+      res.json({
+        student,
+        session: auth.session,
+        wallet,
+        budget: wallet || auth.budget,
+        remainingCredits: student.credit_limit - student.credits_used
+      });
+      return;
+    }
     if (!displayName) throw apiError(400, '이름 또는 별칭을 입력하세요.');
     if (cfg.requireAccessCode && !cfg.accessCodes.has(accessCode)) throw apiError(403, '유효하지 않은 수업 코드입니다.');
     const seed = cfg.requireAccessCode ? accessCode : `${displayName}:${req.ip}`;
@@ -749,10 +1039,13 @@ app.post('/api/sessions/:id/message', async (req, res, next) => {
       inputTokens: roughTokens(system + context),
       outputTokens: preset.maxOutputTokens
     });
+    await ensureCentralUsageAvailable(student);
     ensureCreditAvailable(student, estimatedCost.credits);
 
     const ai = await callAi({ model, system, user: context, maxOutputTokens: preset.maxOutputTokens });
     const actualCost = ai.dryRun ? { usd: 0, krw: 0, credits: 0 } : costToCredits({ model: ai.model, inputTokens: ai.inputTokens, outputTokens: ai.outputTokens });
+    const centralUsage = ai.dryRun ? null : await recordCentralUsage(student, { model: ai.model, inputTokens: ai.inputTokens, outputTokens: ai.outputTokens, task: 'persona_message' });
+    actualCost.credits = chargedCreditsFromCentralUsage(centralUsage, actualCost.credits);
     const chargedStudent = await store.chargeStudent(student.id, Math.min(actualCost.credits, student.credit_limit - student.credits_used));
     const speaker = mode === 'persona' ? targetPersona.name : '전문가 패널';
     const aiMessage = await store.createMessage({
@@ -772,6 +1065,7 @@ app.post('/api/sessions/:id/message', async (req, res, next) => {
     res.json({
       message: aiMessage,
       usage: { inputTokens: ai.inputTokens, outputTokens: ai.outputTokens, credits: actualCost.credits, usd: actualCost.usd, krw: actualCost.krw, dryRun: ai.dryRun, depth: depthKey },
+      centralUsage: centralUsage?.budget || centralUsage?.usageLimit || null,
       student: chargedStudent,
       remainingCredits: chargedStudent.credit_limit - chargedStudent.credits_used
     });
@@ -797,9 +1091,12 @@ ${personas.map((p) => `- ${p.name}: ${p.role}`).join('\n')}
 회의록:
 ${transcript}`;
     const estimatedCost = costToCredits({ model: cfg.summaryModel, inputTokens: roughTokens(system + user), outputTokens: Math.min(900, cfg.maxOutputTokens) });
+    await ensureCentralUsageAvailable(student);
     ensureCreditAvailable(student, estimatedCost.credits);
     const ai = await callAi({ model: cfg.summaryModel, system, user, maxOutputTokens: Math.min(900, cfg.maxOutputTokens) });
     const actualCost = ai.dryRun ? { usd: 0, krw: 0, credits: 0 } : costToCredits({ model: ai.model, inputTokens: ai.inputTokens, outputTokens: ai.outputTokens });
+    const centralUsage = ai.dryRun ? null : await recordCentralUsage(student, { model: ai.model, inputTokens: ai.inputTokens, outputTokens: ai.outputTokens, task: 'persona_summary' });
+    actualCost.credits = chargedCreditsFromCentralUsage(centralUsage, actualCost.credits);
     const chargedStudent = await store.chargeStudent(student.id, Math.min(actualCost.credits, student.credit_limit - student.credits_used));
     await store.updateSession(session.id, { rolling_summary: ai.text });
     const msg = await store.createMessage({
@@ -815,7 +1112,7 @@ ${transcript}`;
       credits_charged: actualCost.credits,
       created_at: nowIso()
     });
-    res.json({ summary: msg, usage: { inputTokens: ai.inputTokens, outputTokens: ai.outputTokens, credits: actualCost.credits, usd: actualCost.usd, krw: actualCost.krw, dryRun: ai.dryRun }, student: chargedStudent, remainingCredits: chargedStudent.credit_limit - chargedStudent.credits_used });
+    res.json({ summary: msg, usage: { inputTokens: ai.inputTokens, outputTokens: ai.outputTokens, credits: actualCost.credits, usd: actualCost.usd, krw: actualCost.krw, dryRun: ai.dryRun }, centralUsage: centralUsage?.budget || centralUsage?.usageLimit || null, student: chargedStudent, remainingCredits: chargedStudent.credit_limit - chargedStudent.credits_used });
   } catch (e) { next(e); }
 });
 
@@ -845,9 +1142,12 @@ ${instruction || '(특별 지시 없음. 제출용 보고서 초안으로 정리
 ${source}`;
     const maxOutputTokens = Math.min(1200, Math.max(cfg.maxOutputTokens, 900));
     const estimatedCost = costToCredits({ model: cfg.editorModel, inputTokens: roughTokens(system + user), outputTokens: maxOutputTokens });
+    await ensureCentralUsageAvailable(student);
     ensureCreditAvailable(student, estimatedCost.credits);
     const ai = await callAi({ model: cfg.editorModel, system, user, maxOutputTokens });
     const actualCost = ai.dryRun ? { usd: 0, krw: 0, credits: 0 } : costToCredits({ model: ai.model, inputTokens: ai.inputTokens, outputTokens: ai.outputTokens });
+    const centralUsage = ai.dryRun ? null : await recordCentralUsage(student, { model: ai.model, inputTokens: ai.inputTokens, outputTokens: ai.outputTokens, task: 'persona_editor' });
+    actualCost.credits = chargedCreditsFromCentralUsage(centralUsage, actualCost.credits);
     const chargedStudent = await store.chargeStudent(student.id, Math.min(actualCost.credits, student.credit_limit - student.credits_used));
     const msg = await store.createMessage({
       id: id('msg'),
@@ -865,6 +1165,7 @@ ${source}`;
     res.json({
       edited: msg,
       usage: { inputTokens: ai.inputTokens, outputTokens: ai.outputTokens, credits: actualCost.credits, usd: actualCost.usd, krw: actualCost.krw, dryRun: ai.dryRun },
+      centralUsage: centralUsage?.budget || centralUsage?.usageLimit || null,
       student: chargedStudent,
       remainingCredits: chargedStudent.credit_limit - chargedStudent.credits_used
     });
@@ -918,7 +1219,7 @@ await store.init();
 if (process.argv.includes('--check-config')) {
   console.log(JSON.stringify({
     ok: true,
-    cfg: { ...cfg, openaiKey: Boolean(cfg.openaiKey), databaseUrl: Boolean(cfg.databaseUrl) }
+    cfg: { ...cfg, openaiKey: Boolean(cfg.openaiKey), databaseUrl: Boolean(cfg.databaseUrl), centralAuthSecret: Boolean(cfg.centralAuthSecret) }
   }, null, 2));
   process.exit(0);
 }

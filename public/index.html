@@ -166,6 +166,10 @@
             <select id="reportLanguage"></select>
           </div>
         </div>
+        <label for="loginEmail">Email</label>
+        <input id="loginEmail" type="email" autocomplete="email" placeholder="name@example.com" />
+        <label for="loginPassword">Password</label>
+        <input id="loginPassword" type="password" autocomplete="current-password" placeholder="8+ characters" />
         <label for="displayName" data-i18n="displayName">이름 또는 별칭</label>
         <input id="displayName" />
         <label for="accessCode"><span data-i18n="accessCode">수업 코드</span> <span class="hint" data-i18n="ifNeeded">필요한 경우</span></label>
@@ -269,6 +273,8 @@
 let config = null;
 let student = JSON.parse(localStorage.getItem("pp_student") || "null");
 let session = JSON.parse(localStorage.getItem("pp_session") || "null");
+let authSessionId = localStorage.getItem("pp_shared_session_id") || "";
+let authSession = JSON.parse(localStorage.getItem("pp_auth_session") || "null");
 let personas = [];
 let messages = [];
 let activeTab = "shared";
@@ -660,6 +666,8 @@ function setStatus(text, cls = "") {
 function saveState() {
   localStorage.setItem("pp_student", JSON.stringify(student));
   localStorage.setItem("pp_session", JSON.stringify(session));
+  localStorage.setItem("pp_shared_session_id", authSessionId || "");
+  localStorage.setItem("pp_auth_session", JSON.stringify(authSession || null));
 }
 
 async function api(path, opts = {}) {
@@ -690,7 +698,8 @@ function renderCredit(remaining) {
   const used = student.credits_used || 0;
   const left = remaining ?? Math.max(0, limit - used);
   const pct = Math.min(100, Math.max(0, (used / limit) * 100));
-  $("creditBox").innerHTML = `${t("user")}: <b>${escapeHtml(student.display_name)}</b><br>${t("used")}: ${used.toLocaleString()} / ${limit.toLocaleString()} credits<br>${t("remaining")}: ${left.toLocaleString()} credits`;
+  const email = student.email ? `<br>Email: ${escapeHtml(student.email)}` : "";
+  $("creditBox").innerHTML = `${t("user")}: <b>${escapeHtml(student.display_name)}</b>${email}<br>${t("used")}: ${used.toLocaleString()} / ${limit.toLocaleString()} credits<br>${t("remaining")}: ${left.toLocaleString()} credits`;
   $("creditProgress").style.width = `${pct}%`;
 }
 
@@ -766,6 +775,7 @@ function applySystemLanguage({ forceDefaults = false, applyTemplateValues = fals
 async function init() {
   config = await api("/api/config");
   $("interfaceLanguage").value = uiLanguage;
+  $("loginEmail").value = localStorage.getItem("pp_login_email") || authSession?.email || "";
   renderExpertLanguages();
   renderReportLanguages();
   applySystemLanguage({ forceDefaults: true, applyTemplateValues: true });
@@ -804,11 +814,23 @@ $("questionPreset").onchange = (e) => {
 
 $("enterBtn").onclick = async () => {
   try {
+    if (config?.centralAuthConfigured) {
+      const email = $("loginEmail").value.trim();
+      const password = $("loginPassword").value;
+      const login = await api("/api/auth/login", {
+        method: "POST",
+        body: { email, password, displayName: $("displayName").value }
+      });
+      authSessionId = login.sessionId || "";
+      authSession = login.session || null;
+      localStorage.setItem("pp_login_email", email);
+    }
     const data = await api("/api/students", {
       method: "POST",
-      body: { displayName: $("displayName").value, accessCode: $("accessCode").value }
+      body: { displayName: $("displayName").value, accessCode: $("accessCode").value, sessionId: authSessionId, sharedSessionId: authSessionId }
     });
     student = data.student;
+    if (data.session) authSession = data.session;
     saveState();
     renderCredit(data.remainingCredits);
     setStatus(t("entered"), "good");
