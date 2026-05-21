@@ -11,9 +11,6 @@ import JSZip from 'jszip';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-const CREDITS_PER_USD_COST = 14000;
-const PURCHASE_WON_PER_CREDIT = 1;
-
 const cfg = {
   port: Number(process.env.PORT || 3000),
   defaultModel: process.env.DEFAULT_MODEL || 'gpt-5.4-mini',
@@ -21,8 +18,8 @@ const cfg = {
   editorModel: process.env.EDITOR_MODEL || process.env.SUMMARY_MODEL || 'gpt-5.4-nano',
   premiumModel: process.env.PREMIUM_MODEL || process.env.DEFAULT_MODEL || 'gpt-5.4-mini',
   creditBudget: Number(process.env.CREDIT_BUDGET_PER_USER || 30000),
-  costUsdToCredits: CREDITS_PER_USD_COST,
-  purchaseKrwPerCredit: PURCHASE_WON_PER_CREDIT,
+  costUsdToCredits: Number(process.env.CREDITS_PER_USD_COST || 14000),
+  purchaseKrwPerCredit: Number(process.env.PURCHASE_KRW_PER_CREDIT || 1),
   maxPersonas: Number(process.env.MAX_PERSONAS || 5),
   maxRounds: Number(process.env.MAX_ROUNDS_PER_SESSION || 8),
   maxMessages: Number(process.env.MAX_MESSAGES_PER_SESSION || 100),
@@ -1107,7 +1104,7 @@ app.get('/api/config', (req, res) => {
     costCurrency: 'USD',
     costUsdToCredits: cfg.costUsdToCredits,
     creditsPerUsdCost: cfg.costUsdToCredits,
-    creditDeductionFormula: 'ceil(cost_usd * 14000)',
+    creditDeductionFormula: `ceil(cost_usd * ${cfg.costUsdToCredits})`,
     purchaseKrwPerCredit: cfg.purchaseKrwPerCredit,
     defaultCreditPurchaseValueKrw: cfg.creditBudget * cfg.purchaseKrwPerCredit,
     defaultIncludedCostUsd: cfg.creditBudget / cfg.costUsdToCredits,
