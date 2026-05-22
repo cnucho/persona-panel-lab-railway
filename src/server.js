@@ -24,6 +24,7 @@ const cfg = {
   maxRounds: Number(process.env.MAX_ROUNDS_PER_SESSION || 8),
   maxMessages: Number(process.env.MAX_MESSAGES_PER_SESSION || 100),
   maxOutputTokens: Number(process.env.MAX_OUTPUT_TOKENS || 700),
+  maxSummaryOutputTokens: Number(process.env.MAX_SUMMARY_OUTPUT_TOKENS || 1600),
   requireAccessCode: String(process.env.REQUIRE_ACCESS_CODE || 'false') === 'true',
   accessCodes: new Set(String(process.env.ACCESS_CODES || '').split(',').map((s) => s.trim()).filter(Boolean)),
   classroomSecret: process.env.CLASSROOM_SHARED_SECRET || 'persona-panel-lab-secret',
@@ -214,8 +215,52 @@ const SUMMARY_SECTIONS = [
   '학생 성찰 질문'
 ];
 
-function summarySectionsPrompt() {
-  return SUMMARY_SECTIONS.map((section, index) => `${index + 1}. ${section}`).join('\n');
+const SUMMARY_SECTION_LABELS = {
+  ko: SUMMARY_SECTIONS,
+  en: [
+    'Core Discussion Summary',
+    'Main Claims by Persona',
+    'Points of Agreement',
+    'Points of Disagreement',
+    'Verifiable Facts',
+    'Unverified Assumptions',
+    'Value Judgments',
+    'Claims Requiring Verification',
+    'Parts Requiring Final Human Judgment',
+    'Student Reflection Questions'
+  ],
+  de: [
+    'Kernzusammenfassung der Diskussion',
+    'Wichtigste Aussagen nach Persona',
+    'Gemeinsamkeiten',
+    'Unstimmigkeiten',
+    'Überprüfbare Fakten',
+    'Nicht überprüfte Annahmen',
+    'Werturteile',
+    'Zu überprüfende Behauptungen',
+    'Teile, die menschliche Schlussbewertung erfordern',
+    'Reflexionsfragen für Lernende'
+  ],
+  es: [
+    'Resumen central de la conversacion',
+    'Afirmaciones principales por persona',
+    'Puntos de acuerdo',
+    'Puntos de desacuerdo',
+    'Hechos verificables',
+    'Suposiciones no verificadas',
+    'Juicios de valor',
+    'Afirmaciones que requieren verificacion',
+    'Partes que requieren juicio humano final',
+    'Preguntas de reflexion para estudiantes'
+  ]
+};
+
+function summarySectionLabels(languageKey = 'ko') {
+  return SUMMARY_SECTION_LABELS[languageKey] || SUMMARY_SECTION_LABELS.en;
+}
+
+function summarySectionsPrompt(languageKey = 'ko') {
+  return summarySectionLabels(languageKey).map((section, index) => `${index + 1}. ${section}`).join('\n');
 }
 
 const LANGUAGE_OPTIONS = {
@@ -973,8 +1018,9 @@ function safeFileName(value, ext) {
   return `${base}.${ext}`;
 }
 
-function normalizedLanguage(value) {
-  return LANGUAGE_OPTIONS[value] ? value : 'ko';
+function normalizedLanguage(value, fallback = 'ko') {
+  if (LANGUAGE_OPTIONS[value]) return value;
+  return LANGUAGE_OPTIONS[fallback] ? fallback : 'ko';
 }
 
 function exportLabels(languageKey = 'ko') {
@@ -1303,7 +1349,7 @@ app.get('/api/config', (req, res) => {
     summarySections: SUMMARY_SECTIONS,
     depthPresets: Object.fromEntries(Object.entries(DEPTH_PRESETS).map(([k, v]) => [k, { label: v.label, maxOutputTokens: v.maxOutputTokens }])),
     languages: Object.fromEntries(Object.entries(LANGUAGE_OPTIONS).map(([k, v]) => [k, v.label])),
-    limits: { maxPersonas: cfg.maxPersonas, maxRounds: cfg.maxRounds, maxMessages: cfg.maxMessages, maxOutputTokens: cfg.maxOutputTokens }
+    limits: { maxPersonas: cfg.maxPersonas, maxRounds: cfg.maxRounds, maxMessages: cfg.maxMessages, maxOutputTokens: cfg.maxOutputTokens, maxSummaryOutputTokens: cfg.maxSummaryOutputTokens }
   });
 });
 
@@ -1517,22 +1563,31 @@ app.post('/api/sessions/:id/summary', async (req, res, next) => {
     const { session, personas, messages } = await loadSessionBundle(req.params.id);
     checkOwner(session, student.id);
     const transcript = messages.map((m) => `[${m.created_at}] ${m.speaker}/${m.channel}: ${m.content}`).join('\n');
-    const reportLanguage = normalizedLanguage(req.body.reportLanguage || req.body.expertLanguage);
-    const system = `너는 전문가 퍼소나 인터뷰의 제출용 요약본 작성자다. 단순 압축 요약이 아니라 학생이 제출물의 초안으로 쓸 수 있는 구조화된 요약본을 작성한다. 퍼소나가 실제 인간 전문가이거나 실제 조사 결과라는 식으로 과장하지 않는다. 사실, 추정, 가치 판단, 검증 필요 주장을 분리한다. 아래 10개 항목을 반드시 같은 순서의 Markdown 제목으로 포함한다.
+    const reportLanguage = normalizedLanguage(req.body.reportLanguage || req.body.expertLanguage, 'en');
+    const system = `You write submission-ready summaries of expert persona interviews. Do not make a short compressed note; write a structured draft that a student can use as the basis for a report. Do not imply that personas are real human experts or that the discussion is real survey evidence. Separate facts, assumptions, value judgments, and claims requiring verification.
 
-${summarySectionsPrompt()}
+Output language requirement:
+${languageInstruction(reportLanguage)}
 
-각 항목은 비어 있으면 "해당 없음" 또는 "추가 검증 필요"라고 적는다. 학생 성찰 질문은 학생이 자신의 판단 근거를 돌아보도록 2~4개 질문으로 작성한다. ${languageInstruction(reportLanguage)}`;
-    const user = `회의 제목: ${session.title}
-회의 종류: ${meetingTypeDetails(session.meeting_type).label}
-주제: ${session.topic}
+Required Markdown headings, in this exact order:
+${summarySectionsPrompt(reportLanguage)}
 
-퍼소나:
+Completeness rules:
+- Include all 10 sections even when the transcript is long.
+- Each section except reflection questions should contain 2-5 specific bullets when there is relevant material.
+- If a section has no evidence, write "Not applicable" or "Requires further verification" in the requested output language.
+- Preserve important persona-specific differences instead of merging everything into one generic summary.
+- The student reflection section should contain 2-4 questions that help the student examine their own reasoning.`;
+    const user = `Meeting title: ${session.title}
+Meeting type: ${meetingTypeDetails(session.meeting_type).label}
+Topic: ${session.topic}
+
+Personas:
 ${personas.map((p) => `- ${p.name}: ${p.role}`).join('\n')}
 
-회의록:
+Full transcript:
 ${transcript}`;
-    const maxSummaryOutputTokens = Math.min(900, cfg.maxOutputTokens);
+    const maxSummaryOutputTokens = Math.max(900, cfg.maxSummaryOutputTokens);
     const estimatedCredits = estimateMaxCreditsForCall({ model: cfg.summaryModel, estimatedInputTokens: roughTokens(system + user), maxOutputTokens: maxSummaryOutputTokens });
     await ensureCentralUsageAvailable(student);
     ensureCreditAvailable(student, estimatedCredits);
@@ -1541,7 +1596,7 @@ ${transcript}`;
     const centralUsage = ai.dryRun ? null : await recordCentralUsage(student, { model: ai.model, inputTokens: ai.inputTokens, outputTokens: ai.outputTokens, task: 'persona_summary' });
     applyCreditsToCost(actualCost, chargedCreditsFromCentralUsage(centralUsage, actualCost.creditsToDeduct));
     const chargedStudent = await store.chargeStudent(student.id, Math.min(actualCost.creditsToDeduct, student.credit_limit - student.credits_used));
-    await store.updateSession(session.id, { rolling_summary: ai.text });
+    await store.updateSession(session.id, { rolling_summary: ai.text, round_count: 0 });
     const msg = await store.createMessage({
       id: id('msg'),
       session_id: session.id,

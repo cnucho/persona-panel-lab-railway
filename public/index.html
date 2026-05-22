@@ -366,7 +366,8 @@ let authSession = JSON.parse(localStorage.getItem("pp_auth_session") || "null");
 let personas = [];
 let messages = [];
 let activeTab = "shared";
-let uiLanguage = localStorage.getItem("pp_ui_language") || "ko";
+const browserLanguage = (navigator.language || navigator.userLanguage || "").toLowerCase().startsWith("ko") ? "ko" : "en";
+let uiLanguage = localStorage.getItem("pp_ui_language") || browserLanguage;
 let expertLanguage = localStorage.getItem("pp_expert_language") || "ko";
 let reportLanguage = localStorage.getItem("pp_report_language") || uiLanguage;
 let clientId = localStorage.getItem("pp_client_id");
@@ -473,7 +474,7 @@ const SYSTEM = {
     errorCreateStudentFirst: "학생 세션을 먼저 만드세요.",
     errorMaxPersonas: "퍼소나 최대 인원을 넘었습니다.",
     errorMaxMessages: "이 회의의 메시지 한도에 도달했습니다.",
-    errorMaxRounds: "이 회의의 라운드 한도에 도달했습니다. 요약을 만들고 새 회의를 시작하세요.",
+    errorMaxRounds: "이 회의의 라운드 한도에 도달했습니다. 요약을 만들어 맥락을 압축한 뒤 이 회의에서 계속 진행하세요.",
     errorCreatePersonaFirst: "퍼소나를 먼저 1명 이상 생성하세요.",
     errorPersonaNotFound: "개별 대화할 퍼소나를 찾을 수 없습니다.",
     errorNoTranscriptToEdit: "편집할 회의록이 아직 없습니다.",
@@ -503,7 +504,7 @@ const SYSTEM = {
     charged: "차감",
     summaryCharged: "요약 차감",
     editorCharged: "편집 차감",
-    contextCompressionHint: "회의가 길어지고 있습니다. 요약본 생성을 눌러 맥락을 압축하세요.",
+    contextCompressionHint: "회의가 길어지고 있습니다. 요약본 생성을 눌러 맥락을 압축하고 이 회의에서 계속 진행하세요.",
     approx: "약",
     inputTokens: "입력",
     outputTokens: "출력",
@@ -622,7 +623,7 @@ const SYSTEM = {
     errorCreateStudentFirst: "Create a student session first.",
     errorMaxPersonas: "The persona limit has been reached.",
     errorMaxMessages: "This meeting has reached the message limit.",
-    errorMaxRounds: "This meeting has reached the round limit. Create a summary and start a new meeting.",
+    errorMaxRounds: "This meeting has reached the round limit. Create a summary to compress context, then continue here.",
     errorCreatePersonaFirst: "Create at least one persona first.",
     errorPersonaNotFound: "The persona for the individual chat was not found.",
     errorNoTranscriptToEdit: "There is no transcript to edit yet.",
@@ -652,7 +653,7 @@ const SYSTEM = {
     charged: "Charged",
     summaryCharged: "Summary charged",
     editorCharged: "Editing charged",
-    contextCompressionHint: "This meeting is getting long. Click Create Summary to compress the context.",
+    contextCompressionHint: "This meeting is getting long. Click Create Summary to compress context and keep going here.",
     approx: "approx.",
     inputTokens: "input",
     outputTokens: "output",
